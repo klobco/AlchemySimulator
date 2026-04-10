@@ -167,7 +167,8 @@ bool UInventoryComponent::RemoveAt(int32 FromIdx, int32 Quantity, FInventorySlot
 
 	if (S.Quantity <= 0)
 	{
-		RemoveSlotAtIndex(FromIdx);
+		Slots[FromIdx] = FInventorySlot{};
+		OnInventoryChanged.Broadcast();
 		return true;
 	}
 
@@ -351,6 +352,7 @@ bool UInventoryComponent::TransferTo(UInventoryComponent* To, int32 FromIdx, int
 		return false;
 	}
 
+	To->OnInventoryChanged.Broadcast();
 	return true;
 }
 

@@ -109,7 +109,7 @@ void UInventoryWidget::RebuildGrid()
         Entry->SlotIndex = Index;
 
 
-        if (Index < Slots.Num())
+        if (Index < Slots.Num() && !Slots[Index].IsEmpty())
         {
             Entry->Setup(Slots[Index]);
         }

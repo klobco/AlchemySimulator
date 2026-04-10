@@ -3,14 +3,15 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
+#include "BaseGameWidget.h"
 #include "TableInventoryWidget.generated.h"
 
 /**
- * 
+ * Widget showing both the station inventory and the player inventory side by side.
+ * Pushed onto the modal stack by ABasicInteractableStationObject.
  */
 UCLASS()
-class ALCHEMYSIMULATOR_API UTableInventoryWidget : public UUserWidget
+class ALCHEMYSIMULATOR_API UTableInventoryWidget : public UBaseGameWidget
 {
 	GENERATED_BODY()
 

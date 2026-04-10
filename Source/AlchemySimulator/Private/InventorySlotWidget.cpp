@@ -67,13 +67,22 @@ void UInventorySlotWidget::Rebuild() {
 
 	if (SlotImage)
 	{
-		if (UTexture2D* Icon = InvSlot.Item->Icon)
+		if (InvSlot.Item)
 		{
-			SlotImage->SetBrushFromTexture(Icon, true);
+			if (UTexture2D* Icon = InvSlot.Item->Icon)
+			{
+				SlotImage->SetBrushFromTexture(Icon, true);
+				SlotImage->SetOpacity(1.f);
+			}
+			else
+			{
+				SlotImage->SetBrushFromTexture(nullptr);
+			}
 		}
 		else
 		{
 			SlotImage->SetBrushFromTexture(nullptr);
+			SlotImage->SetOpacity(0.f);
 		}
 	}
 

@@ -9,6 +9,8 @@
 #include "Components/SceneComponent.h"
 #include "TableInventoryWidget.h"
 #include "InventoryComponent.h"
+#include "BaseGameWidget.h"
+#include "WidgetStackManager.h"
 
 // Sets default values
 ABasicInteractableStationObject::ABasicInteractableStationObject()
@@ -73,27 +75,38 @@ void ABasicInteractableStationObject::HandleEndCursorOver(UPrimitiveComponent* C
 	}
 }
 
-void ABasicInteractableStationObject::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed) {
+void ABasicInteractableStationObject::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed)
+{
+	AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (!PC || !TableScreen) return;
 
-	if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
+	// Toggle: if a UTableWidget is already on top of the stack, pop it
+	if (UBaseGameWidget* Top = PC->WidgetManager->GetTopWidget())
 	{
-		PC->OpenWidget(TableScreen);
+		if (Top->IsA<UTableWidget>())
+		{
+			PC->PopWidget();
+			return;
+		}
 	}
 
+	UTableWidget* Widget = Cast<UTableWidget>(CreateWidget<UUserWidget>(PC, TableScreen));
+	if (!Widget) return;
+
+	Widget->SetTable(this);
+	PC->PushWidget(Widget);
 }
 
-void ABasicInteractableStationObject::OpenInventory(UPrimitiveComponent* Component, FKey ButtonPressed) {
+void ABasicInteractableStationObject::OpenInventory(UPrimitiveComponent* Component, FKey ButtonPressed)
+{
+	AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (!PC || !TableInventoryWidgetClass) return;
 
-	if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
-	{
-		if (!TableInventoryWidgetClass) return;
-		UTableInventoryWidget* Entry = CreateWidget<UTableInventoryWidget>(GetOwningPlayer(), TableInventoryWidgetClass);
-		if (!Entry) return;
+	UTableInventoryWidget* Widget = CreateWidget<UTableInventoryWidget>(PC, TableInventoryWidgetClass);
+	if (!Widget) return;
 
-		Entry->Setup(Table);
-		PC->OpenWidget(TableInventoryWidgetClass);
-	}
-
+	Widget->Setup(this);
+	PC->PushWidget(Widget);
 }
 
 // Called every frame

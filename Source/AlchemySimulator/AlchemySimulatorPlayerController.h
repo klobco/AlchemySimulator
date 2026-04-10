@@ -8,28 +8,33 @@
 
 class UInputMappingContext;
 class UUserWidget;
+class UBaseGameWidget;
+class UWidgetStackManager;
 
 /**
- *  Basic PlayerController class for a third person game
- *  Manages input mappings
+ *  Basic PlayerController class for a third person game.
+ *  Manages input mappings and the modal widget stack.
  */
 UCLASS(abstract)
 class AAlchemySimulatorPlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
+
+public:
+	AAlchemySimulatorPlayerController();
+
 protected:
 
 	/** Input Mapping Contexts */
-	UPROPERTY(EditAnywhere, Category ="Input|Input Mappings")
+	UPROPERTY(EditAnywhere, Category = "Input|Input Mappings")
 	TArray<UInputMappingContext*> DefaultMappingContexts;
 
-	/** Input Mapping Contexts */
-	UPROPERTY(EditAnywhere, Category="Input|Input Mappings")
+	/** Input Mapping Contexts excluded on mobile */
+	UPROPERTY(EditAnywhere, Category = "Input|Input Mappings")
 	TArray<UInputMappingContext*> MobileExcludedMappingContexts;
 
 	/** Mobile controls widget to spawn */
-	UPROPERTY(EditAnywhere, Category="Input|Touch Controls")
+	UPROPERTY(EditAnywhere, Category = "Input|Touch Controls")
 	TSubclassOf<UUserWidget> MobileControlsWidgetClass;
 
 	/** Pointer to the mobile controls widget */
@@ -40,24 +45,17 @@ protected:
 	UPROPERTY(EditAnywhere, Config, Category = "Input|Touch Controls")
 	bool bForceTouchControls = false;
 
-	/** Gameplay initialization */
 	virtual void BeginPlay() override;
-
-	/** Input mapping context setup */
 	virtual void SetupInputComponent() override;
+	virtual void OnPossess(APawn* InPawn) override;
 
 	UFUNCTION()
 	void SetupStationController(ABasicInteractableStationObject* station);
 
-
-
 	UFUNCTION()
 	void RemoveStationController();
 
-	/** Returns true if the player should use UMG touch controls */
 	bool ShouldUseTouchControls() const;
-
-	virtual void OnPossess(APawn* InPawn) override;
 
 	UPROPERTY()
 	class UInteractionDetectorComponent* Detector = nullptr;
@@ -68,15 +66,27 @@ protected:
 	UFUNCTION()
 	void OnFocusedChanged(UObject* NewObj, UObject* OldObj);
 
-
 	void BindToDetector(APawn* InPawn);
-
 	void ResetActiveTool();
 
 public:
 	void DoInteract();
-
 	void DoBack();
+
+	/**
+	 * Push a fully configured widget onto the modal stack and display it.
+	 * Create and call any setup methods on the widget before passing it here.
+	 * Also manages camera rig tilt (disables while any widget is open).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void PushWidget(UBaseGameWidget* Widget);
+
+	/**
+	 * Close the top-most widget. Respects UBaseGameWidget::CanClose.
+	 * Re-enables camera tilt when the stack becomes empty.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void PopWidget();
 
 	class AInteractionCameraRig* InteractionRig;
 
@@ -96,15 +106,9 @@ public:
 	ABasicInteractableStationObject* CurrentStation = nullptr;
 
 	UPROPERTY()
-	class UUserWidget* CurrentScreen = nullptr;
-
-	void OpenWidget(TSubclassOf<UUserWidget> widgetClass);
-
-	void CloseWidget();
-
-	bool bIsOpenWidget = false;
-
-	UPROPERTY()
 	AActor* OldTarget;
 
+	/** The modal widget stack. Use PushWidget/PopWidget rather than accessing this directly. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UWidgetStackManager> WidgetManager;
 };

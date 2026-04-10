@@ -43,7 +43,11 @@ void UTableWidget::NativeConstruct()
 void UTableWidget::NativeDestruct()
 {
     Super::NativeDestruct();
+}
 
+void UTableWidget::OnClosed_Implementation()
+{
+    SetTable(nullptr);
 }
 
 void UTableWidget::Setup(UInventoryComponent* InInventory) {

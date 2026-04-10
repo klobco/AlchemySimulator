@@ -3,15 +3,16 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
+#include "BaseGameWidget.h"
 #include "ActionTabWidget.h"
 #include "TableWidget.generated.h"
 
 /**
- * 
+ * Widget for the workbench action/tool management menu.
+ * Pushed onto the modal stack by ABasicInteractableStationObject.
  */
 UCLASS()
-class ALCHEMYSIMULATOR_API UTableWidget : public UUserWidget
+class ALCHEMYSIMULATOR_API UTableWidget : public UBaseGameWidget
 {
 	GENERATED_BODY()
 
@@ -51,6 +52,7 @@ public:
 	void Rebuild();
 
 protected:
-    virtual void NativeConstruct() override;
-    virtual void NativeDestruct() override;
+	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
+	virtual void OnClosed_Implementation() override;
 };

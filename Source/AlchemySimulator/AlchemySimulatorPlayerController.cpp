@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "AlchemySimulatorPlayerController.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
@@ -11,7 +10,6 @@
 #include "InteractionDetectorComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
-#include "TableWidget.h"
 #include "InteractionCameraRig.h"
 #include "BasicInteractableStationObject.h"
 #include "GameFramework/Character.h"
@@ -20,10 +18,16 @@
 #include "CustomCursorWidget.h"
 #include "BaseTool.h"
 #include "ItemDefinitionBase.h"
+#include "BaseGameWidget.h"
+#include "WidgetStackManager.h"
+
+AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
+{
+	WidgetManager = CreateDefaultSubobject<UWidgetStackManager>(TEXT("WidgetManager"));
+}
 
 void AAlchemySimulatorPlayerController::BeginPlay()
 {
-
 	UE_LOG(LogAlchemySimulator, Error, TEXT("Using my custom controller"));
 	Super::BeginPlay();
 
@@ -45,20 +49,15 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 	// only spawn touch controls on local player controllers
 	if (ShouldUseTouchControls() && IsLocalPlayerController())
 	{
-		// spawn the mobile controls widget
 		MobileControlsWidget = CreateWidget<UUserWidget>(this, MobileControlsWidgetClass);
-
 		if (MobileControlsWidget)
 		{
-			// add the controls to the player screen
 			MobileControlsWidget->AddToPlayerScreen(0);
-
-		} else {
-
-			UE_LOG(LogAlchemySimulator, Error, TEXT("Could not spawn mobile controls widget."));
-
 		}
-
+		else
+		{
+			UE_LOG(LogAlchemySimulator, Error, TEXT("Could not spawn mobile controls widget."));
+		}
 	}
 }
 
@@ -66,10 +65,8 @@ void AAlchemySimulatorPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	// only add IMCs for local player controllers
 	if (IsLocalPlayerController())
 	{
-		// Add Input Mapping Contexts
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
 			for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
@@ -77,7 +74,6 @@ void AAlchemySimulatorPlayerController::SetupInputComponent()
 				Subsystem->AddMappingContext(CurrentContext, 0);
 			}
 
-			// only add these IMCs if we're not using mobile touch input
 			if (!ShouldUseTouchControls())
 			{
 				for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
@@ -91,7 +87,6 @@ void AAlchemySimulatorPlayerController::SetupInputComponent()
 
 bool AAlchemySimulatorPlayerController::ShouldUseTouchControls() const
 {
-	// are we on a mobile platform? Should we force touch?
 	return SVirtualJoystick::ShouldDisplayTouchInterface() || bForceTouchControls;
 }
 
@@ -105,7 +100,6 @@ void AAlchemySimulatorPlayerController::BindToDetector(APawn* InPawn)
 {
 	if (!InPawn) return;
 
-	
 	Detector = InPawn->FindComponentByClass<UInteractionDetectorComponent>();
 	if (Detector)
 	{
@@ -123,10 +117,10 @@ void AAlchemySimulatorPlayerController::OnFocusedChanged(UObject* NewObj, UObjec
 	CurrentTarget = NewObj;
 }
 
-void AAlchemySimulatorPlayerController::DoInteract() {
+void AAlchemySimulatorPlayerController::DoInteract()
+{
 	if (CurrentTarget != nullptr)
 	{
-		//TODO potential problem when interacting with the other types of objects
 		if (!Interacting)
 		{
 			OldTarget = GetViewTarget();
@@ -139,19 +133,16 @@ void AAlchemySimulatorPlayerController::DoInteract() {
 				InteractionRig->EnableTilt();
 				Interacting = true;
 				SetupStationController(station);
-				//TODO Do I need?
 				IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
 			}
 			else
 			{
-				//TODO dangerous, assuming that it is ok with every other object.
 				IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
 			}
-
 		}
 		else
 		{
-			CloseWidget();
+			WidgetManager->CloseAll();
 			RemoveStationController();
 			InteractionRig->DisableTilt();
 			SetViewTargetWithBlend(OldTarget, 0.35f);
@@ -164,8 +155,8 @@ void AAlchemySimulatorPlayerController::DoInteract() {
 	}
 }
 
-void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractableStationObject* station) {
-
+void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractableStationObject* station)
+{
 	CurrentStation = station;
 	ACharacter* C = Cast<ACharacter>(GetPawn());
 	if (C)
@@ -178,9 +169,10 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 	}
 }
 
-void AAlchemySimulatorPlayerController::RemoveStationController() {
-
+void AAlchemySimulatorPlayerController::RemoveStationController()
+{
 	ResetActiveTool();
+	WidgetManager->CloseAll();
 	CurrentStation = nullptr;
 	ACharacter* C = Cast<ACharacter>(GetPawn());
 	if (C)
@@ -193,59 +185,28 @@ void AAlchemySimulatorPlayerController::RemoveStationController() {
 	}
 }
 
-void AAlchemySimulatorPlayerController::OpenWidget(TSubclassOf<UUserWidget> widgetClass) {
-
-	if (!bIsOpenWidget)
+void AAlchemySimulatorPlayerController::PushWidget(UBaseGameWidget* Widget)
+{
+	WidgetManager->PushWidget(Widget);
+	// Disable camera tilt whenever the stack is non-empty
+	if (InteractionRig && WidgetManager->HasOpenWidgets())
 	{
 		InteractionRig->DisableTilt();
-		if (!CurrentScreen && widgetClass)
-		{
-			CurrentScreen = CreateWidget<UUserWidget>(this, widgetClass);
-		}
-		if (CurrentScreen && !CurrentScreen->IsInViewport()) {
-			CurrentScreen->AddToViewport(10);
-			UTableWidget* TableWidget = Cast<UTableWidget>(CurrentScreen);
-			if (TableWidget)
-			{
-				ABasicInteractableStationObject* Tab = Cast<ABasicInteractableStationObject>(CurrentTarget.GetObject());
-				if (Tab)
-				{
-					TableWidget->SetTable(Tab);
-				}
-			}
-		}
-
-		bIsOpenWidget = true;
 	}
-	else
+}
+
+void AAlchemySimulatorPlayerController::PopWidget()
+{
+	WidgetManager->PopWidget();
+	// Re-enable camera tilt once all widgets are dismissed
+	if (InteractionRig && !WidgetManager->HasOpenWidgets())
 	{
 		InteractionRig->EnableTilt();
-		if (CurrentScreen && CurrentScreen->IsInViewport()) {
-
-			UTableWidget* TableWidget = Cast<UTableWidget>(CurrentScreen);
-			if (TableWidget)
-			{
-				TableWidget->SetTable(nullptr);
-			}
-			CurrentScreen->RemoveFromParent();
-			CurrentScreen = nullptr;
-			bIsOpenWidget = false;
-		}
 	}
 }
 
-
-
-void AAlchemySimulatorPlayerController::CloseWidget() {
-	if (CurrentScreen && CurrentScreen->IsInViewport() && bIsOpenWidget) {
-		InteractionRig->DisableTilt();
-		CurrentScreen->RemoveFromParent();
-		CurrentScreen = nullptr;
-		bIsOpenWidget = false;
-	}
-}
-
-void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool){
+void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)
+{
 	if (Interacting && CurrentStation)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Setting active tool"));
@@ -264,22 +225,27 @@ void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool){
 	}
 }
 
-void AAlchemySimulatorPlayerController::ResetActiveTool() {
-
+void AAlchemySimulatorPlayerController::ResetActiveTool()
+{
 	SetMouseCursorWidget(EMouseCursor::Custom, nullptr);
 	CurrentMouseCursor = EMouseCursor::Default;
 
-	CurrentStation->SetActiveTool(nullptr);
+	if (CurrentStation)
+	{
+		CurrentStation->SetActiveTool(nullptr);
+	}
 }
 
-void AAlchemySimulatorPlayerController::DoBack() {
-
+void AAlchemySimulatorPlayerController::DoBack()
+{
 	UE_LOG(LogTemp, Error, TEXT("Backing"));
-	if (CurrentScreen && CurrentScreen->IsInViewport() && bIsOpenWidget) {
-		CloseWidget();
-		InteractionRig->EnableTilt();
+
+	if (WidgetManager->HasOpenWidgets())
+	{
+		PopWidget();
 		return;
 	}
+
 	if (Interacting)
 	{
 		RemoveStationController();
@@ -288,5 +254,4 @@ void AAlchemySimulatorPlayerController::DoBack() {
 		Interacting = false;
 		return;
 	}
-	
 }
