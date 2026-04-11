@@ -43,10 +43,6 @@ void UInventorySlotWidget::NativeConstruct()
 {
 
 	Super::NativeConstruct();
-	if (SlotButton)
-	{
-		SlotButton->OnClicked.AddDynamic(this, &UInventorySlotWidget::HandleClick);
-	}
 }
 
 
@@ -102,11 +98,21 @@ FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& G, const F
     //    else                 OnSlotAction.Broadcast(this, SlotIndex, EInvAction::TransferToOther);
     //    return FReply::Handled();
     //}
+
+    if (E.GetEffectingButton() == EKeys::LeftMouseButton)
+    {
+        if (OwnerInventory && OwnerInventory->Slots.IsValidIndex(SlotIndex) &&
+            OwnerInventory->Slots[SlotIndex].Quantity > 0)
+        {
+            return UWidgetBlueprintLibrary::DetectDragIfPressed(E, this, EKeys::LeftMouseButton).NativeReply;
+        }
+    }
     return Super::NativeOnMouseButtonDown(G, E);
 }
 
 FReply UInventorySlotWidget::NativeOnPreviewMouseButtonDown(const FGeometry& G, const FPointerEvent& E)
 {
+
     if (E.GetEffectingButton() == EKeys::LeftMouseButton)
     {
         
