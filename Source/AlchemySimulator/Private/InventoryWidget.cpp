@@ -34,7 +34,7 @@ void UInventoryWidget::NativeConstruct()
 
 void UInventoryWidget::NativeDestruct()
 {
-    if (Inventory)
+    if (IsValid(Inventory))
     {
         Inventory->OnInventoryChanged.RemoveDynamic(this, &UInventoryWidget::HandleInventoryChanged);
     }
@@ -51,7 +51,7 @@ void UInventoryWidget::SetInventory(UInventoryComponent* InInv)
 {
     UE_LOG(LogTemp, Error, TEXT("Setting Inv"));
 
-    if (Inventory)
+    if (IsValid(Inventory))
     {
         Inventory->OnInventoryChanged.RemoveDynamic(this, &UInventoryWidget::HandleInventoryChanged);
     }

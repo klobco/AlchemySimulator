@@ -3,6 +3,7 @@
 
 #include "BasicInteractableStationObject.h"
 #include "InventoryWidget.h"
+#include "InventoryComponent.h"
 #include "TableInventoryWidget.h"
 
 void UTableInventoryWidget::NativeConstruct()
@@ -16,5 +17,23 @@ void UTableInventoryWidget::NativeDestruct()
 }
 
 void UTableInventoryWidget::Setup(ABasicInteractableStationObject* station) {
-    TableInventoryWidget->SetInventory(station->herbsInventory);
+    if (!station) return;
+
+    if (TableInventoryWidget)
+    {
+        TableInventoryWidget->SetInventory(station->herbsInventory);
+    }
+
+    if (PlayerInventoryWidget)
+    {
+        UInventoryComponent* PlayerInv = nullptr;
+        if (APlayerController* PC = GetOwningPlayer())
+        {
+            if (APawn* P = PC->GetPawn())
+            {
+                PlayerInv = P->FindComponentByClass<UInventoryComponent>();
+            }
+        }
+        PlayerInventoryWidget->SetInventory(PlayerInv);
+    }
 }

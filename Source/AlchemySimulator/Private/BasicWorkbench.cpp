@@ -12,9 +12,6 @@ ABasicWorkbench::ABasicWorkbench() {
 	KnifeStand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Knife stand"));
 	KnifeStand->SetupAttachment(Body);
 
-	ToolsLimit = 2;
-	HerbsLimit = 16;
-
 	toolsInventory->MaxSlots = ToolsLimit;
 	herbsInventory->MaxSlots = HerbsLimit;
 }
