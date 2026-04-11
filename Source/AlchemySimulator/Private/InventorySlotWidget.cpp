@@ -6,6 +6,7 @@
 #include "Components/Image.h"
 #include "Components/Button.h"
 #include "InventoryComponent.h"
+#include "Components/Border.h"
 #include "InvDragOperation.h"
 #include "InventoryWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
@@ -154,7 +155,7 @@ void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& G, const FPoint
     UImage* DragImg = NewObject<UImage>(this);
     FSlateBrush Brush;
     Brush.SetResourceObject(Icon);
-    Brush.ImageSize = FVector2D(32.f, 32.f); 
+    Brush.ImageSize = FVector2D(64.f, 64.f); 
     DragImg->SetBrush(Brush);
     DragImg->SetOpacity(0.7f);
 

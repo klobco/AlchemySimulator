@@ -27,6 +27,9 @@ public:
 	UPROPERTY(meta = (BindWidget))
 	class UTextBlock* SlotQuantity = nullptr;
 
+	UPROPERTY(meta = (BindWidget))
+	class UBorder* SlotBorder;
+
 	UPROPERTY(BlueprintReadOnly)
 	class UInventoryComponent* OwnerInventory;
 

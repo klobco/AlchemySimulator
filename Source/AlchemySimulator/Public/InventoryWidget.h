@@ -19,8 +19,11 @@ public:
 	UPROPERTY(meta = (BindWidget))
 	class UUniformGridPanel* Grid_Inventory = nullptr;
 
+	UPROPERTY(meta = (BindWidget))
+	class UBorder* SlotBorder;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
-	int32 NumColumns = 6;
+	int32 NumColumns = 5;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory")
 	TSubclassOf<class UInventorySlotWidget> EntryWidgetClass;

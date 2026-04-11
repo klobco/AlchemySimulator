@@ -289,39 +289,41 @@ int32 UInventoryComponent::FreeStorageForItem(const UItemDefinitionBase* Item, c
 
 bool UInventoryComponent::MoveWithin(int32 FromIdx, int32 ToIdx, int32 Quantity)
 {
-	if (!Slots.IsValidIndex(FromIdx) || Quantity <= 0) return false;
+	if (!Slots.IsValidIndex(FromIdx) || !Slots.IsValidIndex(ToIdx)) return false;
+	if (Quantity <= 0 || FromIdx == ToIdx) return false;
 
-	if (ToIdx < 0) return false;
-	if (ToIdx > Slots.Num()) ToIdx = Slots.Num();
-
-	
-	if (FromIdx == ToIdx && (Quantity >= Slots[FromIdx].Quantity)) return false;
-
-	FInventorySlot& From = Slots[FromIdx];
-
-	if (Quantity >= From.Quantity)
+	// Merge into existing stack if possible
+	if (!Slots[ToIdx].IsEmpty() && CanStackTogether(Slots[FromIdx], Slots[ToIdx]))
 	{
-		FInventorySlot Moving = From;
-		Slots.RemoveAt(FromIdx);
-
-		
-		if (ToIdx > Slots.Num()) ToIdx = Slots.Num();
-		if (FromIdx < ToIdx) ToIdx -= 1;
-
-		Slots.Insert(Moving, ToIdx);
+		const int32 Space = Slots[ToIdx].Item->MaxStackSize - Slots[ToIdx].Quantity;
+		const int32 Take = FMath::Min(Quantity, FMath::Min(Slots[FromIdx].Quantity, Space));
+		if (Take <= 0) return false;
+		Slots[ToIdx].Quantity += Take;
+		Slots[FromIdx].Quantity -= Take;
+		if (Slots[FromIdx].Quantity <= 0) Slots[FromIdx] = FInventorySlot{};
 		OnInventoryChanged.Broadcast();
 		return true;
 	}
 
-	const int32 Take = FMath::Clamp(Quantity, 1, From.Quantity - 1);
+	// Full move: swap source and destination
+	if (Quantity >= Slots[FromIdx].Quantity)
+	{
+		Slots.Swap(FromIdx, ToIdx);
+		OnInventoryChanged.Broadcast();
+		return true;
+	}
+
+	// Split: only into an empty slot
+	if (!Slots[ToIdx].IsEmpty()) return false;
+
+	const int32 Take = FMath::Clamp(Quantity, 1, Slots[FromIdx].Quantity - 1);
 	FInventorySlot Split;
-	Split.Instance = From.Instance;
+	Split.Instance = Slots[FromIdx].Instance;
 	Split.Quantity = Take;
-	Split.Item = From.Item;
+	Split.Item = Slots[FromIdx].Item;
 
-	From.Quantity -= Take;
-
-	Slots.Insert(Split, FMath::Clamp(ToIdx, 0, Slots.Num()));
+	Slots[FromIdx].Quantity -= Take;
+	Slots[ToIdx] = Split;
 	OnInventoryChanged.Broadcast();
 	return true;
 }
