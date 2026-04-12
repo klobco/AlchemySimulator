@@ -381,6 +381,20 @@ bool UInventoryComponent::AddSlotAtIndex(const FInventorySlot& SlotItem, int32 T
 		Slots[ToIdx].Quantity += QuantityAdded;
 		return true;
 	}
+}
 
+int32 UInventoryComponent::CountNonEmptySlots() {
+	int32 EmptySlots = 0;
 
+	for (auto& Slot : Slots)
+	{
+		if (Slot.IsEmpty())
+		{
+			EmptySlots++;
+
+			continue;
+		}
+	}
+
+	return EmptySlots;
 }

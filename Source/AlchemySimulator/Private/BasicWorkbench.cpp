@@ -12,8 +12,13 @@ ABasicWorkbench::ABasicWorkbench() {
 	KnifeStand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Knife stand"));
 	KnifeStand->SetupAttachment(Body);
 
+	HerbStand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Herb stand"));
+	HerbStand->SetupAttachment(Body);
+
 	toolsInventory->MaxSlots = ToolsLimit;
 	herbsInventory->MaxSlots = HerbsLimit;
+
+	herbsInventory->OnInventoryChanged.AddDynamic(this, &ABasicWorkbench::HandleHerbsInvenotyChange);
 }
 
 void ABasicWorkbench::AddTool(ABaseTool* tool) {
@@ -86,12 +91,31 @@ void ABasicWorkbench::RemoveTool(ABaseTool* tool) {
 	tool->Destroy();
 }
 
-void ABasicWorkbench::AddHerb(FInventorySlot plant)
-{
-	herbsInventory->AddItem(plant.Item, plant.Quantity, plant.Instance);
-}
 
-void ABasicWorkbench::RemoveHerb(FInventorySlot plant)
-{
-	herbsInventory->RemoveItem(plant.Item, plant.Quantity, plant.Instance);
+void ABasicWorkbench::HandleHerbsInvenotyChange() {
+
+	
+	if (herbsInventory->CountNonEmptySlots() == Herbs.Num()) //Herb Moved
+	{
+		// Find out where it was moved
+		// Find out from where it was moved
+		// Change the position of the herb by moving it to different socket
+		// Change the map index of that herb to corespond with the correct iventory index
+	}
+	else if (herbsInventory->CountNonEmptySlots() > Herbs.Num()) //Herb added
+	{
+		// Find out where was herb added
+		// Create a new Herb instance and set the position to empty socket
+		for (int i = 0; i < herbsInventory->MaxSlots; i++)
+		{
+			if (!herbsInventory->Slots[i].IsEmpty() && !Herbs.Contains(i))
+			{
+				// Create Herb
+			}
+		}
+	}
+	else if (herbsInventory->CountNonEmptySlots() < Herbs.Num()) // Herb removed
+	{
+		// Find out from where was Herb removed
+	}
 }

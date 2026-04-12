@@ -21,6 +21,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "components")
 	UStaticMeshComponent* KnifeStand;
 
+	UPROPERTY(EditAnywhere, Category = "components")
+	UStaticMeshComponent* HerbStand;
+
+	UPROPERTY(EditAnywhere, Category = "herbs")
+	TMap<int32, class ABasePlant* > Herbs;
+
 	UFUNCTION(BlueprintCallable)
 	virtual void AddTool(ABaseTool* tool) override;
 
@@ -33,4 +39,6 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void RemoveHerb(FInventorySlot plant);
 	
+private:
+	void HandleHerbsInvenotyChange();
 };

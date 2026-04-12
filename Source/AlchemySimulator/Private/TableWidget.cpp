@@ -133,31 +133,18 @@ void UTableWidget::SetTable(ABasicInteractableStationObject* InTable) {
 
 void UTableWidget::ItemAction(FInventorySlot InSlot) {
 
-    if (SelectedAction == EAction::AddHerb)
-    {
-
-        if (!Table) return;
-
-        if (Table->HerbsLimit < Table->herbsInventory->Slots.Num()) return;
-
-        //if (!InSlot.Item || !InSlot.Item->WorldItem) return;
-
-        if (!Inventory->RemoveSlotItem(InSlot)) return;
-
-        UE_LOG(LogTemp, Error, TEXT("Herb Action Add"));
-
-        if (ABasicWorkbench* workbench =  Cast<ABasicWorkbench>(Table))
-        {
-            workbench->AddHerb(InSlot);
-        }
-    }
-
+    UE_LOG(LogTemp, Error, TEXT("Item Action Add START"));
 
     if (SelectedAction == EAction::AddToTable)
     {
         if (!Table) return;
 
-        if (Table->ToolsLimit < Table->toolsInventory->Slots.Num()) return;
+        int32 SlotIndex = Table->toolsInventory->FindFirstEmptySlotIndex();
+        if (SlotIndex == INDEX_NONE)
+        {
+            UE_LOG(LogTemp, Error, TEXT("BasicWorkbench: toolsInventory full"));
+            return;
+        }
 
         if (!InSlot.Item || !InSlot.Item->WorldItem) return;
 

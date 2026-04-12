@@ -75,6 +75,9 @@ public:
     // Event for UI refresh
     UPROPERTY(BlueprintAssignable, Category = "Inventory")
     FOnInventoryChanged OnInventoryChanged;
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    int32 CountNonEmptySlots();
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
