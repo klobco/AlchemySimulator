@@ -32,13 +32,15 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	virtual void RemoveTool(ABaseTool* tool) override;
-
-	UFUNCTION(BlueprintCallable)
-	void AddHerb(FInventorySlot plant);
-
-	UFUNCTION(BlueprintCallable)
-	void RemoveHerb(FInventorySlot plant);
 	
 private:
+	UFUNCTION()
 	void HandleHerbsInvenotyChange();
+
+	void CreateHerb(FInventorySlot InSlot, int32 indexToAdd);
+
+	void RemoveHerb(int32 indexToRemove);
+
+protected:
+	virtual void BeginPlay() override;
 };

@@ -384,17 +384,15 @@ bool UInventoryComponent::AddSlotAtIndex(const FInventorySlot& SlotItem, int32 T
 }
 
 int32 UInventoryComponent::CountNonEmptySlots() {
-	int32 EmptySlots = 0;
+	int32 NonEmptySlots = 0;
 
 	for (auto& Slot : Slots)
 	{
-		if (Slot.IsEmpty())
+		if (!Slot.IsEmpty())
 		{
-			EmptySlots++;
-
-			continue;
+			NonEmptySlots++;
 		}
 	}
 
-	return EmptySlots;
+	return NonEmptySlots;
 }

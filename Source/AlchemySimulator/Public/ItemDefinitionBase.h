@@ -65,7 +65,7 @@ public:
 
     // --- World representation (optional) ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|World")
-    TSubclassOf<class ABaseTool> WorldItem = nullptr;
+    TSubclassOf<class AActor> WorldItem = nullptr;
 
     // --- Workbench cursor ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Workbench")
