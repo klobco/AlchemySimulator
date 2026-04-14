@@ -41,6 +41,8 @@ private:
 
 	void RemoveHerb(int32 indexToRemove);
 
+	void MoveHerb(int32 from, int32 to);
+
 protected:
 	virtual void BeginPlay() override;
 };

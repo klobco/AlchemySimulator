@@ -162,6 +162,31 @@ void ABasicWorkbench::RemoveHerb(int32 indexToRemove) {
 		Herbs.Remove(indexToRemove);
 	}
 }
+void ABasicWorkbench::MoveHerb(int32 from, int32 to) {
+
+
+	if (ABasePlant** herbToMove = Herbs.Find(from)) {
+
+		ABasePlant* Herb = *herbToMove;
+		if (Herb)
+		{
+			Herb->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+			Herbs.Add(to, Herb);
+
+			FName SocketName = FName(*FString::Printf(TEXT("Herb%d"), to));
+			UE_LOG(LogTemp, Error, TEXT("Herb Socket name is %s"), *SocketName.ToString());
+
+			Herb->AttachToComponent(
+				HerbStand,
+				FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+				SocketName
+			);
+		}
+
+		Herbs.Remove(from);
+		
+	}
+}
 
 
 void ABasicWorkbench::HandleHerbsInvenotyChange() {
@@ -171,10 +196,26 @@ void ABasicWorkbench::HandleHerbsInvenotyChange() {
 	
 	if (herbsInventory->CountNonEmptySlots() == Herbs.Num()) //Herb Moved
 	{
-		// Find out where it was moved
-		// Find out from where it was moved
-		// Change the position of the herb by moving it to different socket
-		// Change the map index of that herb to corespond with the correct iventory index
+
+		int32 removedIndex = INDEX_NONE;
+		int32 addedIndex = INDEX_NONE;
+
+		for (int i = 0; i < herbsInventory->MaxSlots; i++)
+		{
+			if (!herbsInventory->Slots[i].IsEmpty() && !Herbs.Contains(i))
+			{
+				addedIndex = i;
+			}
+			else if (herbsInventory->Slots[i].IsEmpty() && Herbs.Contains(i)) {
+				removedIndex = i;
+			}
+		}
+
+		if (removedIndex != INDEX_NONE && addedIndex != INDEX_NONE)
+		{
+			MoveHerb(removedIndex, addedIndex);
+		}
+
 	}
 	else if (herbsInventory->CountNonEmptySlots() > Herbs.Num()) //Herb added
 	{
