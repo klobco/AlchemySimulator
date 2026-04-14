@@ -32,6 +32,8 @@ void UInventoryComponent::BeginPlay()
 
 bool UInventoryComponent::AddItem(const UItemDefinitionBase* Item, int32 Quantity, const FItemInstanceData& Instance) {
 
+	if (!CategoryWhitelist.IsEmpty() && !CategoryWhitelist.Contains(Item->Category)) return false;
+
 	if (Item == nullptr)
 	{
 		return false;
@@ -334,7 +336,11 @@ bool UInventoryComponent::TransferTo(UInventoryComponent* To, int32 FromIdx, int
 	if (!Slots.IsValidIndex(FromIdx) || Quantity <= 0) return false;
 	if (!To->Slots.IsValidIndex(ToIdx)) return false;
 
+
 	const FInventorySlot& Src = Slots[FromIdx];
+
+	if (!To->CategoryWhitelist.IsEmpty() && !To->CategoryWhitelist.Contains(Src.Item->Category)) return false;
+
 	const int32 Want = FMath::Min(Quantity, Src.Quantity);
 	if (Want <= 0) return false;
 

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "ItemMetadata.h"
+#include "ItemDefinitionBase.h"
 #include "InventoryComponent.generated.h"
 
 class UItemDefinitionBase;
@@ -26,6 +27,9 @@ public:
     // Inventory configuration
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
     int32 MaxSlots = 24;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
+    TArray<EItemCategory> CategoryWhitelist;
 
     // Read-only access (UI)
     UFUNCTION(BlueprintCallable, Category = "Inventory")
