@@ -27,11 +27,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = "herbs")
 	TMap<int32, class ABasePlant* > Herbs;
 
+	UPROPERTY(EditAnywhere, Category = "herbs")
+	ABasePlant* HerbOnTable;
+
 	UFUNCTION(BlueprintCallable)
 	virtual void AddTool(ABaseTool* tool) override;
 
 	UFUNCTION(BlueprintCallable)
 	virtual void RemoveTool(ABaseTool* tool) override;
+
+	UFUNCTION(BlueprintCallable)
+	void MovePlantToManipulation(ABasePlant* Herb);
 	
 private:
 	UFUNCTION()

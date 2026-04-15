@@ -8,6 +8,14 @@
 #include "ItemMetadata.h"
 #include "BasePlant.generated.h"
 
+UENUM(BlueprintType)
+enum class EHerbStatus : uint8
+{
+	Inventory,
+	OnStand,
+	OnTable
+};
+
 UCLASS()
 class ALCHEMYSIMULATOR_API ABasePlant : public AActor, public IInteractable
 {
@@ -16,6 +24,9 @@ class ALCHEMYSIMULATOR_API ABasePlant : public AActor, public IInteractable
 public:	
 	// Sets default values for this actor's properties
 	ABasePlant();
+
+	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Plant")
+	//class UBoxComponent* InteractionBounds;
 
 	UPROPERTY(EditAnywhere, Category = "components")
 	class UStaticMeshComponent* Stem;
@@ -30,10 +41,30 @@ public:
 	UStaticMeshComponent* Fruit;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	class UItemDefinitionBase* Item;
+	TObjectPtr<const class UItemDefinitionBase> Item;
+
+	UPROPERTY()
+	class ABasicWorkbench* ParentWorkbench;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	FItemInstanceData Instance;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
+	UMaterialInstance* OverlayMaterialInstance;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Item")
+	EHerbStatus HerbStatus;
+
+	UFUNCTION()
+	void HandleBeginCursorOver(UPrimitiveComponent* Component);
+
+	UFUNCTION()
+	void HandleEndCursorOver(UPrimitiveComponent* Component);
+
+	UFUNCTION()
+	void HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed);
+
+	void SetPlantHighlight(bool bEnabled);
 
 protected:
 	// Called when the game starts or when spawned

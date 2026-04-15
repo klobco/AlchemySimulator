@@ -3,7 +3,10 @@
 
 #include "BasePlant.h"
 #include "AlchemySimulatorCharacter.h"
+#include "AlchemySimulatorPlayerController.h"
 #include "InventoryComponent.h"
+#include "BasicWorkbench.h"
+#include "Components/BoxComponent.h"
 #include "ItemDefinitionBase.h"
 
 // Sets default values
@@ -30,7 +33,62 @@ ABasePlant::ABasePlant()
 void ABasePlant::BeginPlay()
 {
 	Super::BeginPlay();
+
+	TArray<UStaticMeshComponent*> MeshComponents;
+	this->GetComponents<UStaticMeshComponent>(MeshComponents);
+
+	for (UStaticMeshComponent* comp : MeshComponents) {
+
+		comp->OnBeginCursorOver.AddDynamic(this, &ABasePlant::HandleBeginCursorOver);
+		comp->OnEndCursorOver.AddDynamic(this, &ABasePlant::HandleEndCursorOver);
+		comp->OnClicked.AddDynamic(this, &ABasePlant::HandleClicked);
+	}
 	
+}
+
+void ABasePlant::SetPlantHighlight(bool bEnabled)
+{
+
+	if (bEnabled && HerbStatus == EHerbStatus::OnStand)
+	{
+		if (Stem)   Stem->SetOverlayMaterial(OverlayMaterialInstance);
+		if (Leaf_A) Leaf_A->SetOverlayMaterial(OverlayMaterialInstance);
+		if (Leaf_B) Leaf_B->SetOverlayMaterial(OverlayMaterialInstance);
+		if (Fruit)  Fruit->SetOverlayMaterial(OverlayMaterialInstance);
+	}
+	else
+	{
+		if (Stem)   Stem->SetOverlayMaterial(nullptr);
+		if (Leaf_A) Leaf_A->SetOverlayMaterial(nullptr);
+		if (Leaf_B) Leaf_B->SetOverlayMaterial(nullptr);
+		if (Fruit)  Fruit->SetOverlayMaterial(nullptr);
+	}
+}
+
+void ABasePlant::HandleBeginCursorOver(UPrimitiveComponent* Component)
+{
+	SetPlantHighlight(true);
+}
+
+void ABasePlant::HandleEndCursorOver(UPrimitiveComponent* Component)
+{
+	SetPlantHighlight(false);
+}
+
+void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Plant clicked"));
+
+	if (HerbStatus == EHerbStatus::OnStand && ParentWorkbench)
+	{
+		ParentWorkbench->MovePlantToManipulation(this);
+	}
+
+	if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		// napr. ak chceš ma active plant namiesto active tool
+		// PC->SetActivePlant(this);
+	}
 }
 
 // Called every frame

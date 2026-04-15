@@ -123,8 +123,11 @@ void ABasicWorkbench::CreateHerb(FInventorySlot InSlot, int32 indexToAdd) {
 		TArray<UStaticMeshComponent*> MeshComponents;
 		SpawnedPlant->GetComponents<UStaticMeshComponent>(MeshComponents);
 
-		SpawnedPlant->GetRootComponent()->SetWorldScale3D(FVector(0.07f));
+		SpawnedPlant->SetActorScale3D(FVector(0.07f));
 		SpawnedPlant->Tags.Empty();
+
+		SpawnedPlant->Item = InSlot.Item;
+		SpawnedPlant->Instance = InSlot.Instance;
 		for (UStaticMeshComponent* MeshComp : MeshComponents)
 		{
 			if (!MeshComp) continue;
@@ -143,6 +146,10 @@ void ABasicWorkbench::CreateHerb(FInventorySlot InSlot, int32 indexToAdd) {
 			SocketName
 		);
 
+		SpawnedPlant->HerbStatus = EHerbStatus::OnStand;
+		SpawnedPlant->SetActorRelativeRotation(FRotator(0.f, -13.f, 0.f));
+
+		SpawnedPlant->ParentWorkbench = this;
 
 		Herbs.Add(indexToAdd, SpawnedPlant);
 	}
@@ -236,5 +243,92 @@ void ABasicWorkbench::HandleHerbsInvenotyChange() {
 				RemoveHerb(i);
 			}
 		}
+	}
+}
+
+void ABasicWorkbench::MovePlantToManipulation(ABasePlant* Herb) {
+	if (!Herb) return;
+	if (HerbOnTable) return;
+
+	int32 FoundIndex = INDEX_NONE;
+	for (auto& Pair : Herbs)
+	{
+		if (Pair.Value == Herb)
+		{
+			FoundIndex = Pair.Key;
+			break;
+		}
+	}
+
+	if (FoundIndex == INDEX_NONE) return;
+
+	if (herbsInventory->Slots[FoundIndex].Quantity >= 2)
+	{
+
+		UWorld* World = this->GetWorld();
+		if (!World) return;
+
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		FRotator SpawnRotation(0.f, 0.f, 0.f);
+
+		ABasePlant* SpawnedPlant = World->SpawnActor<ABasePlant>(
+			herbsInventory->Slots[FoundIndex].Item->WorldItem,
+			this->GetActorLocation(),
+			SpawnRotation,
+			Params
+		);
+
+		if (SpawnedPlant)
+		{
+			TArray<UStaticMeshComponent*> MeshComponents;
+			SpawnedPlant->GetComponents<UStaticMeshComponent>(MeshComponents);
+
+			SpawnedPlant->SetActorScale3D(FVector(0.07f));
+			SpawnedPlant->Tags.Empty();
+			for (UStaticMeshComponent* MeshComp : MeshComponents)
+			{
+				if (!MeshComp) continue;
+
+				MeshComp->SetSimulatePhysics(false);
+				MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			}
+
+			SpawnedPlant->AttachToComponent(
+				Body,
+				FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+				"ManipulationSocket"
+			);
+
+			HerbOnTable = SpawnedPlant;
+
+			SpawnedPlant->Item = herbsInventory->Slots[FoundIndex].Item;
+			SpawnedPlant->Instance = herbsInventory->Slots[FoundIndex].Instance;
+
+			SpawnedPlant->ParentWorkbench = this;
+
+			SpawnedPlant->HerbStatus = EHerbStatus::OnTable;
+			SpawnedPlant->SetActorRelativeRotation(FRotator(0.f, -5.f, 90.f));
+		}
+	}
+	else
+	{
+		HerbOnTable = Herb;
+
+		Herb->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+		Herb->AttachToComponent(
+			Body,
+			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+			"ManipulationSocket"
+		);
+
+		Herb->HerbStatus = EHerbStatus::OnTable;
+
+		Herb->SetActorRelativeRotation(FRotator(0.f, -5.f, 90.f));
+
+		Herbs.Remove(FoundIndex);
+		herbsInventory->RemoveSlotAtIndex(FoundIndex);
 	}
 }
