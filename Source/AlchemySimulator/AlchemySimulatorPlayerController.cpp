@@ -210,6 +210,12 @@ void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)
 	if (Interacting && CurrentStation)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Setting active tool"));
+
+		if (CurrentStation->ActiveToolIndex != -1 && *CurrentStation->Tools.Find(CurrentStation->ActiveToolIndex) == tool)
+		{
+			ResetActiveTool();
+			return;
+		}
 		CurrentStation->SetActiveTool(tool);
 	}
 

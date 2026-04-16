@@ -26,7 +26,7 @@ public:
 	TMap<int32, class ABaseTool* > Tools;
 
 	UPROPERTY(VisibleAnywhere, Category = "tools")
-	int32 ActiveToolIndex;
+	int32 ActiveToolIndex = -1;
 
 	UPROPERTY(EditAnywhere, Category = "tools")
 	int32 ToolsLimit;

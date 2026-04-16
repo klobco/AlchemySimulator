@@ -5,6 +5,8 @@
 #include "AlchemySimulatorCharacter.h"
 #include "AlchemySimulatorPlayerController.h"
 #include "InventoryComponent.h"
+#include "BaseTool.h"
+#include "ItemDefinitionBase.h"
 #include "BasicWorkbench.h"
 #include "Components/BoxComponent.h"
 #include "ItemDefinitionBase.h"
@@ -82,6 +84,27 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 	if (HerbStatus == EHerbStatus::OnStand && ParentWorkbench)
 	{
 		ParentWorkbench->MovePlantToManipulation(this);
+	}
+
+	if (HerbStatus == EHerbStatus::OnTable) {
+
+		if (ParentWorkbench->ActiveToolIndex == INDEX_NONE) return;
+
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("Clicked component: %s"),
+			Component ? *Component->GetName() : TEXT("NULL")
+		);
+
+		ABaseTool* tool = *ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
+
+
+		if (tool->Item->Category == EItemCategory::Knife)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Not null index tools"));
+			Component->SetVisibility(false,false);
+		}
 	}
 
 	if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
