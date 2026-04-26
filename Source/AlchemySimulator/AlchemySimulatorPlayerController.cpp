@@ -15,6 +15,8 @@
 #include "GameFramework/Character.h"
 #include "BasePlant.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "InvDragOperation.h"
+#include "BasicWorkbench.h"
 #include "CustomCursorWidget.h"
 #include "BaseTool.h"
 #include "ItemDefinitionBase.h"
@@ -35,6 +37,7 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 	{
 		BindToDetector(GetPawn());
 	}
+	
 
 	if (!InteractionRig)
 	{
@@ -260,4 +263,71 @@ void AAlchemySimulatorPlayerController::DoBack()
 		Interacting = false;
 		return;
 	}
+
+}
+bool AAlchemySimulatorPlayerController::TraceFromScreenPosition(const FVector2D& ScreenPos, FHitResult& OutHit) const
+{
+	FVector WorldLocation;
+	FVector WorldDirection;
+
+	if (!DeprojectScreenPositionToWorld(ScreenPos.X, ScreenPos.Y, WorldLocation, WorldDirection))
+	{
+		UE_LOG(LogTemp, Error, TEXT("DeprojectScreenPositionToWorld failed"));
+		return false;
+	}
+
+	const FVector Start = WorldLocation;
+	const FVector End = Start + (WorldDirection * 10000.f);
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(InventoryDropTrace), false);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		OutHit,
+		Start,
+		End,
+		ECC_Visibility,
+		Params
+	);
+
+	if (!bHit)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No world hit from screen position"));
+		return false;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Trace hit actor: %s | comp: %s"),
+		*GetNameSafe(OutHit.GetActor()),
+		*GetNameSafe(OutHit.GetComponent()));
+
+	return true;
+}
+
+bool AAlchemySimulatorPlayerController::TryHandleWorldDropFromScreenPosition(UInvDragOperation* DragOp, const FVector2D& ScreenPos)
+{
+	if (!DragOp) return false;
+	if (DragOp->bDropHandledByUI) return false;
+
+	FHitResult Hit;
+	if (!TraceFromScreenPosition(ScreenPos, Hit))
+	{
+		return false;
+	}
+
+	if (UPrimitiveComponent* HitComp = Hit.GetComponent())
+	{
+		if (HitComp->ComponentHasTag(TEXT("WorkbenchDropZone")))
+		{
+			if (ABasicWorkbench* Workbench = Cast<ABasicWorkbench>(HitComp->GetOwner()))
+			{
+				return Workbench->TryPlaceDraggedItem(DragOp, Hit);
+			}
+		}
+	}
+
+	if (ABasicWorkbench* Workbench = Cast<ABasicWorkbench>(Hit.GetActor()))
+	{
+		return Workbench->TryPlaceDraggedItem(DragOp, Hit);
+	}
+
+	return false;
 }

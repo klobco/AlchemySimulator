@@ -5,6 +5,8 @@
 #include "ItemDefinitionBase.h"
 #include "InventoryComponent.h"
 #include "BasePlant.h"
+#include "InvDragOperation.h"
+#include "Components/BoxComponent.h"
 #include "DrawDebugHelpers.h"
 #include "BasicWorkbench.h"
 
@@ -13,20 +15,20 @@ ABasicWorkbench::ABasicWorkbench() {
 	KnifeStand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Knife stand"));
 	KnifeStand->SetupAttachment(Body);
 
-	HerbStand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Herb stand"));
-	HerbStand->SetupAttachment(Body);
-
 	toolsInventory->MaxSlots = ToolsLimit;
 	herbsInventory->MaxSlots = HerbsLimit;
 
-	
+	DropZone = CreateDefaultSubobject<UBoxComponent>(TEXT("DropZone"));
+	DropZone->SetupAttachment(RootComponent);
+	DropZone->ComponentTags.Add(TEXT("WorkbenchDropZone"));
+	DropZone->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	DropZone->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 }
 
 void ABasicWorkbench::BeginPlay()
 {
 	Super::BeginPlay();
 
-	herbsInventory->OnInventoryChanged.AddDynamic(this, &ABasicWorkbench::HandleHerbsInvenotyChange);
 }
 
 void ABasicWorkbench::AddTool(ABaseTool* tool) {
@@ -99,188 +101,68 @@ void ABasicWorkbench::RemoveTool(ABaseTool* tool) {
 	tool->Destroy();
 }
 
-void ABasicWorkbench::CreateHerb(FInventorySlot InSlot, int32 indexToAdd) {
+bool ABasicWorkbench::CanAcceptDraggedItem(const UItemDefinitionBase* ItemDef) const
+{
+	if (!ItemDef) return false;
 
-	UE_LOG(LogTemp, Error, TEXT("Creating Herb"));
+	// Tu si daj vlastnú logiku:
+	// napr. povolíš len byliny, tools, potion ingredients, atď.
+	return true;
+}
 
-	UWorld* World = this->GetWorld();
-	if (!World) return;
+bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitResult& Hit)
+{
+	if (!DragOp) return false;
+	if (!DragOp->SourceInventory) return false;
+	if (!DragOp->SlotSnapshot.Item) return false;
+	if (DragOp->Quantity <= 0) return false;
+
+	const UItemDefinitionBase* ItemDef = DragOp->SlotSnapshot.Item;
+	if (!ItemDef) return false;
+
+	if (!CanAcceptDraggedItem(ItemDef))
+	{
+		return false;
+	}
+
+	if (!ItemDef->WorldItem)
+	{
+		return false;
+	}
+
+	if (!DragOp->SourceInventory->Slots.IsValidIndex(DragOp->FromIndex))
+	{
+		return false;
+	}
+
+
+
+	const FInventorySlot& CurrentSlot = DragOp->SourceInventory->Slots[DragOp->FromIndex];
+
+	if (CurrentSlot.Quantity < DragOp->Quantity || CurrentSlot.Item != ItemDef)
+	{
+		return false;
+	}
+
+	FVector SpawnLocation = Hit.ImpactPoint;
+	FRotator SpawnRotation = GetActorRotation();
 
 	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Params.Owner = this;
 
-	FRotator SpawnRotation(0.f, 0.f, 0.f);
-
-	ABasePlant* SpawnedPlant = World->SpawnActor<ABasePlant>(
-		InSlot.Item->WorldItem,
-		this->GetActorLocation(),
+	AActor* SpawndedActor = GetWorld()->SpawnActor<AActor>(
+		ItemDef->WorldItem,
+		SpawnLocation,
 		SpawnRotation,
 		Params
 	);
 
-	if (SpawnedPlant)
+	if (!SpawndedActor)
 	{
-		TArray<UStaticMeshComponent*> MeshComponents;
-		SpawnedPlant->GetComponents<UStaticMeshComponent>(MeshComponents);
-
-		SpawnedPlant->SetActorScale3D(FVector(0.07f));
-		SpawnedPlant->Tags.Empty();
-
-		SpawnedPlant->Item = InSlot.Item;
-		SpawnedPlant->Instance = InSlot.Instance;
-		for (UStaticMeshComponent* MeshComp : MeshComponents)
-		{
-			if (!MeshComp) continue;
-
-			MeshComp->SetSimulatePhysics(false);
-			MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-		}
-
-
-		FName SocketName = FName(*FString::Printf(TEXT("Herb%d"), indexToAdd));
-		UE_LOG(LogTemp, Error, TEXT("Herb Socket name is %s"), *SocketName.ToString());
-
-		SpawnedPlant->AttachToComponent(
-			HerbStand,
-			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-			SocketName
-		);
-
-		SpawnedPlant->HerbStatus = EHerbStatus::OnStand;
-		SpawnedPlant->SetActorRelativeRotation(FRotator(0.f, -13.f, 0.f));
-
-		SpawnedPlant->ParentWorkbench = this;
-
-		Herbs.Add(indexToAdd, SpawnedPlant);
-	}
-}
-
-void ABasicWorkbench::RemoveHerb(int32 indexToRemove) {
-
-
-	if (ABasePlant** herbToRemove = Herbs.Find(indexToRemove)){
-
-		ABasePlant* Herb = *herbToRemove;
-		if (Herb)
-		{
-			Herb->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-			Herb->Destroy();
-		}
-		Herbs.Remove(indexToRemove);
-	}
-}
-void ABasicWorkbench::MoveHerb(int32 from, int32 to) {
-
-
-	if (ABasePlant** herbToMove = Herbs.Find(from)) {
-
-		ABasePlant* Herb = *herbToMove;
-		if (Herb)
-		{
-			Herb->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-			Herbs.Add(to, Herb);
-
-			FName SocketName = FName(*FString::Printf(TEXT("Herb%d"), to));
-			UE_LOG(LogTemp, Error, TEXT("Herb Socket name is %s"), *SocketName.ToString());
-
-			Herb->AttachToComponent(
-				HerbStand,
-				FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-				SocketName
-			);
-		}
-
-		Herbs.Remove(from);
-		
-	}
-}
-
-
-void ABasicWorkbench::HandleHerbsInvenotyChange() {
-
-	UE_LOG(LogTemp, Error, TEXT("Herb Inventory change event"));
-
-	
-	if (herbsInventory->CountNonEmptySlots() == Herbs.Num()) //Herb Moved
-	{
-
-		int32 removedIndex = INDEX_NONE;
-		int32 addedIndex = INDEX_NONE;
-
-		for (int i = 0; i < herbsInventory->MaxSlots; i++)
-		{
-			if (!herbsInventory->Slots[i].IsEmpty() && !Herbs.Contains(i))
-			{
-				addedIndex = i;
-			}
-			else if (herbsInventory->Slots[i].IsEmpty() && Herbs.Contains(i)) {
-				removedIndex = i;
-			}
-		}
-
-		if (removedIndex != INDEX_NONE && addedIndex != INDEX_NONE)
-		{
-			MoveHerb(removedIndex, addedIndex);
-		}
-
-	}
-	else if (herbsInventory->CountNonEmptySlots() > Herbs.Num()) //Herb added
-	{
-		for (int i = 0; i < herbsInventory->MaxSlots; i++)
-		{
-			if (!herbsInventory->Slots[i].IsEmpty() && !Herbs.Contains(i))
-			{
-				CreateHerb(herbsInventory->Slots[i], i);
-			}
-		}
-	}
-	else if (herbsInventory->CountNonEmptySlots() < Herbs.Num()) // Herb removed
-	{
-		for (int i = 0; i < herbsInventory->MaxSlots; i++)
-		{
-			if (herbsInventory->Slots[i].IsEmpty() && Herbs.Contains(i))
-			{
-				RemoveHerb(i);
-			}
-		}
-	}
-}
-
-void ABasicWorkbench::MovePlantToManipulation(ABasePlant* Herb) {
-	if (!Herb) return;
-	if (HerbOnTable) return;
-
-	int32 FoundIndex = INDEX_NONE;
-	for (auto& Pair : Herbs)
-	{
-		if (Pair.Value == Herb)
-		{
-			FoundIndex = Pair.Key;
-			break;
-		}
+		return false;
 	}
 
-	if (FoundIndex == INDEX_NONE) return;
-
-	if (herbsInventory->Slots[FoundIndex].Quantity >= 2)
-	{
-
-		UWorld* World = this->GetWorld();
-		if (!World) return;
-
-		FActorSpawnParameters Params;
-		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-		FRotator SpawnRotation(0.f, 0.f, 0.f);
-
-		ABasePlant* SpawnedPlant = World->SpawnActor<ABasePlant>(
-			herbsInventory->Slots[FoundIndex].Item->WorldItem,
-			this->GetActorLocation(),
-			SpawnRotation,
-			Params
-		);
-
-		if (SpawnedPlant)
+	if (ABasePlant* SpawnedPlant = Cast<ABasePlant>(SpawndedActor))
 		{
 			TArray<UStaticMeshComponent*> MeshComponents;
 			SpawnedPlant->GetComponents<UStaticMeshComponent>(MeshComponents);
@@ -295,40 +177,35 @@ void ABasicWorkbench::MovePlantToManipulation(ABasePlant* Herb) {
 				MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 			}
 
+
 			SpawnedPlant->AttachToComponent(
 				Body,
 				FAttachmentTransformRules::SnapToTargetNotIncludingScale,
 				"ManipulationSocket"
 			);
 
-			HerbOnTable = SpawnedPlant;
+			HerbsOnTable.Add(SpawnedPlant);
 
-			SpawnedPlant->Item = herbsInventory->Slots[FoundIndex].Item;
-			SpawnedPlant->Instance = herbsInventory->Slots[FoundIndex].Instance;
+			SpawnedPlant->Item = CurrentSlot.Item;
+			SpawnedPlant->Instance = CurrentSlot.Instance;
 
 			SpawnedPlant->ParentWorkbench = this;
+
+			SpawnedPlant->Stem->SetSimulatePhysics(true);
+			SpawnedPlant->Stem->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
 			SpawnedPlant->HerbStatus = EHerbStatus::OnTable;
 			SpawnedPlant->SetActorRelativeRotation(FRotator(0.f, -5.f, 90.f));
 		}
-	}
-	else
-	{
-		HerbOnTable = Herb;
 
-		Herb->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 
-		Herb->AttachToComponent(
-			Body,
-			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-			"ManipulationSocket"
-		);
+		FInventorySlot RemovedSlot;
+		const bool bRemoved = DragOp->SourceInventory->RemoveAt(DragOp->FromIndex, DragOp->Quantity, RemovedSlot);
+		if (!bRemoved)
+		{
+			SpawndedActor->Destroy();
+			return false;
+		}
 
-		Herb->HerbStatus = EHerbStatus::OnTable;
-
-		Herb->SetActorRelativeRotation(FRotator(0.f, -5.f, 90.f));
-
-		Herbs.Remove(FoundIndex);
-		herbsInventory->RemoveSlotAtIndex(FoundIndex);
-	}
+	return true;
 }

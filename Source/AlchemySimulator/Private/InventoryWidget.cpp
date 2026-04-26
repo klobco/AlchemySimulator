@@ -7,6 +7,8 @@
 #include "Components/UniformGridSlot.h"
 #include "Components/Image.h"
 #include "InventorySlotWidget.h"
+#include "AlchemySimulatorPlayerController.h"
+#include "InvDragOperation.h"
 #include "Components/TextBlock.h"
 
 void UInventoryWidget::NativeConstruct()
@@ -49,7 +51,6 @@ void UInventoryWidget::HandleInventoryChanged()
 
 void UInventoryWidget::SetInventory(UInventoryComponent* InInv)
 {
-    UE_LOG(LogTemp, Error, TEXT("Setting Inv"));
 
     if (IsValid(Inventory))
     {

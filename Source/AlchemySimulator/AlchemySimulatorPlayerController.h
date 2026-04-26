@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+ // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,6 +10,8 @@ class UInputMappingContext;
 class UUserWidget;
 class UBaseGameWidget;
 class UWidgetStackManager;
+
+
 
 /**
  *  Basic PlayerController class for a third person game.
@@ -101,6 +103,11 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<class UCustomCursorWidget> CursorWidgetInstance = nullptr;
+
+	UFUNCTION()
+	bool TryHandleWorldDropFromScreenPosition(UInvDragOperation* DragOp, const FVector2D& ScreenPos);
+
+	bool TraceFromScreenPosition(const FVector2D& ScreenPos, FHitResult& OutHit) const;
 
 	UPROPERTY()
 	ABasicInteractableStationObject* CurrentStation = nullptr;

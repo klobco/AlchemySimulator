@@ -21,4 +21,9 @@ public:
     UPROPERTY(BlueprintReadOnly) int32 FromIndex = INDEX_NONE;
     UPROPERTY(BlueprintReadOnly) int32 Quantity = 0;
     UPROPERTY(BlueprintReadOnly) FInventorySlot SlotSnapshot;
+
+    UPROPERTY()
+    bool bDropHandledByUI = false;
+
+    virtual void DragCancelled_Implementation(const FPointerEvent& PointerEvent) override;
 };

@@ -10,6 +10,7 @@
 #include "InvDragOperation.h"
 #include "InventoryWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "AlchemySimulatorPlayerController.h"
 #include "Components/TextBlock.h"
 
 
@@ -178,20 +179,29 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& G, const FDragDropEvent
 
     if (!FromInv || !ToInv) return false;
 
+    bool bSuccess = false;
+
     if (FromInv == ToInv)
     {
         
         if (FromIdx != ToIdx)
         {
             
-            return FromInv->MoveWithin(FromIdx, ToIdx, Qty);
+            bSuccess = FromInv->MoveWithin(FromIdx, ToIdx, Qty);
         }
         return false;
     }
     else
     {
-        return FromInv->TransferTo(ToInv, FromIdx,ToIdx, Qty);
+        bSuccess = FromInv->TransferTo(ToInv, FromIdx,ToIdx, Qty);
     }
+
+    if (bSuccess)
+    {
+        Op->bDropHandledByUI = true;
+    }
+
+    return bSuccess;
 }
 
 void UInventorySlotWidget::NativeOnDragEnter(const FGeometry&, const FDragDropEvent&, UDragDropOperation* Op)

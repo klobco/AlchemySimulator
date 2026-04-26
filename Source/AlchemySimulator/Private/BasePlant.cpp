@@ -83,7 +83,7 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 
 	if (HerbStatus == EHerbStatus::OnStand && ParentWorkbench)
 	{
-		ParentWorkbench->MovePlantToManipulation(this);
+		// ParentWorkbench->MovePlantToManipulation(this);
 	}
 
 	if (HerbStatus == EHerbStatus::OnTable) {
@@ -109,7 +109,7 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 
 	if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
 	{
-		// napr. ak chceš ma active plant namiesto active tool
+		// napr. ak chceï¿½ maï¿½ active plant namiesto active tool
 		// PC->SetActivePlant(this);
 	}
 }
