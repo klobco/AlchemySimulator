@@ -118,4 +118,7 @@ public:
 	/** The modal widget stack. Use PushWidget/PopWidget rather than accessing this directly. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UWidgetStackManager> WidgetManager;
+
+private:
+	void DebugClick();
 };

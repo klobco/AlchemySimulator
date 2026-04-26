@@ -5,6 +5,7 @@
 #include "ItemDefinitionBase.h"
 #include "InventoryComponent.h"
 #include "BasePlant.h"
+#include "DrawDebugHelpers.h"
 #include "InvDragOperation.h"
 #include "Components/BoxComponent.h"
 #include "DrawDebugHelpers.h"
@@ -145,6 +146,11 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 	}
 
 	FVector SpawnLocation = Hit.ImpactPoint;
+
+	// DrawDebugSphere(GetWorld(), SpawnLocation, 10.f, 12, FColor::Red, true);
+	SpawnLocation = Body->GetSocketLocation("ManipulationSocket");
+	
+
 	FRotator SpawnRotation = GetActorRotation();
 
 	FActorSpawnParameters Params;
@@ -156,6 +162,8 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 		SpawnRotation,
 		Params
 	);
+
+
 
 	if (!SpawndedActor)
 	{
@@ -174,15 +182,8 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 				if (!MeshComp) continue;
 
 				MeshComp->SetSimulatePhysics(false);
-				MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+				MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 			}
-
-
-			SpawnedPlant->AttachToComponent(
-				Body,
-				FAttachmentTransformRules::SnapToTargetNotIncludingScale,
-				"ManipulationSocket"
-			);
 
 			HerbsOnTable.Add(SpawnedPlant);
 
@@ -190,12 +191,14 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 			SpawnedPlant->Instance = CurrentSlot.Instance;
 
 			SpawnedPlant->ParentWorkbench = this;
+			SpawnedPlant->HerbStatus = EHerbStatus::OnTable;
+
+			SpawnedPlant->SetActorLocation(Body->GetSocketLocation("ManipulationSocket"));
+			SpawnedPlant->SetActorRotation(FRotator(0.f, -5.f, 90.f));
 
 			SpawnedPlant->Stem->SetSimulatePhysics(true);
-			SpawnedPlant->Stem->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
-			SpawnedPlant->HerbStatus = EHerbStatus::OnTable;
-			SpawnedPlant->SetActorRelativeRotation(FRotator(0.f, -5.f, 90.f));
+			UE_LOG(LogTemp, Warning, TEXT("Spawned plant %s at location %s and rotation %s"), *SpawnedPlant->GetName(), *SpawnedPlant->GetActorLocation().ToString(), *SpawnedPlant->GetActorRotation().ToString());
 		}
 
 

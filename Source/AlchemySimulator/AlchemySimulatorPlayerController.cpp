@@ -22,6 +22,7 @@
 #include "ItemDefinitionBase.h"
 #include "BaseGameWidget.h"
 #include "WidgetStackManager.h"
+#include "DrawDebugHelpers.h"
 
 AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
 {
@@ -86,6 +87,8 @@ void AAlchemySimulatorPlayerController::SetupInputComponent()
 			}
 		}
 	}
+
+	// InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AAlchemySimulatorPlayerController::DebugClick);
 }
 
 bool AAlchemySimulatorPlayerController::ShouldUseTouchControls() const
@@ -265,6 +268,25 @@ void AAlchemySimulatorPlayerController::DoBack()
 	}
 
 }
+void AAlchemySimulatorPlayerController::DebugClick()
+{
+	if (!Interacting) return;
+
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit))
+	{
+		DrawDebugSphere(GetWorld(), Hit.ImpactPoint, 2.f, 12, FColor::Red, false, 3.f);
+		UE_LOG(LogTemp, Warning, TEXT("[DebugClick] actor: %s | component: %s | location: %s"),
+			*GetNameSafe(Hit.GetActor()),
+			*GetNameSafe(Hit.GetComponent()),
+			*Hit.ImpactPoint.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[DebugClick] No hit"));
+	}
+}
+
 bool AAlchemySimulatorPlayerController::TraceFromScreenPosition(const FVector2D& ScreenPos, FHitResult& OutHit) const
 {
 	FVector WorldLocation;

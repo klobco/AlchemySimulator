@@ -7,6 +7,7 @@
 #include "InventoryComponent.h"
 #include "BaseTool.h"
 #include "ItemDefinitionBase.h"
+#include "DrawDebugHelpers.h"
 #include "BasicWorkbench.h"
 #include "Components/BoxComponent.h"
 #include "ItemDefinitionBase.h"
@@ -38,6 +39,8 @@ void ABasePlant::BeginPlay()
 
 	TArray<UStaticMeshComponent*> MeshComponents;
 	this->GetComponents<UStaticMeshComponent>(MeshComponents);
+
+	UE_LOG(LogTemp, Warning, TEXT("base plant is in begin play"));
 
 	for (UStaticMeshComponent* comp : MeshComponents) {
 
@@ -79,12 +82,7 @@ void ABasePlant::HandleEndCursorOver(UPrimitiveComponent* Component)
 
 void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed)
 {
-	UE_LOG(LogTemp, Warning, TEXT("Plant clicked"));
-
-	if (HerbStatus == EHerbStatus::OnStand && ParentWorkbench)
-	{
-		// ParentWorkbench->MovePlantToManipulation(this);
-	}
+	UE_LOG(LogTemp, Warning, TEXT("[HandleClicked] component: %s"), *GetNameSafe(Component));
 
 	if (HerbStatus == EHerbStatus::OnTable) {
 
