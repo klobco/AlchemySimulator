@@ -47,6 +47,7 @@ void ABasePlant::BeginPlay()
 		comp->OnBeginCursorOver.AddDynamic(this, &ABasePlant::HandleBeginCursorOver);
 		comp->OnEndCursorOver.AddDynamic(this, &ABasePlant::HandleEndCursorOver);
 		comp->OnClicked.AddDynamic(this, &ABasePlant::HandleClicked);
+
 	}
 	
 }
@@ -85,24 +86,31 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 	UE_LOG(LogTemp, Warning, TEXT("[HandleClicked] component: %s"), *GetNameSafe(Component));
 
 	if (HerbStatus == EHerbStatus::OnTable) {
+		
+		if (ParentWorkbench->ActiveToolIndex == INDEX_NONE)		 {
+			APlayerController* PC = GetWorld()->GetFirstPlayerController();
+			if (!PC) return;
 
-		if (ParentWorkbench->ActiveToolIndex == INDEX_NONE) return;
+			AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
+			if (!MyPC) return;
 
-		UE_LOG(
-			LogTemp,
-			Warning,
-			TEXT("Clicked component: %s"),
-			Component ? *Component->GetName() : TEXT("NULL")
-		);
-
-		ABaseTool* tool = *ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
-
-
-		if (tool->Item->Category == EItemCategory::Knife)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Not null index tools"));
-			Component->SetVisibility(false,false);
+			MyPC->StartWorldDrag(this);
+			return;
 		}
+		else
+		{
+			ABaseTool* tool = *ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
+
+			if (tool->Item->Category == EItemCategory::Knife)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Not null index tools"));
+				Component->SetVisibility(false,false);
+			}
+		}
+
+
+		
+
 	}
 
 	if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))

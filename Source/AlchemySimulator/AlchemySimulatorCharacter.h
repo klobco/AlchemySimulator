@@ -58,6 +58,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* BackAction;
 
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* RotateObjectAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* LeftMouseAction;
+
 public:
 
 	/** Constructor */
@@ -99,6 +105,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void DoBackAction();
+
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	virtual void DoRotateObjectAction(const FInputActionValue& Value);
+
+	UFUNCTION(BlueprintCallable, Category = "Input")
+	virtual void DoStopLeftMouseAction();
 
 public:
 

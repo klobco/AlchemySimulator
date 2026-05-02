@@ -72,7 +72,9 @@ void AAlchemySimulatorCharacter::SetupPlayerInputComponent(UInputComponent* Play
 
 		//Actions
 		EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AAlchemySimulatorCharacter::DoInteractAction);
+		EnhancedInputComponent->BindAction(LeftMouseAction, ETriggerEvent::Completed, this, &AAlchemySimulatorCharacter::DoStopLeftMouseAction);
 		EnhancedInputComponent->BindAction(BackAction, ETriggerEvent::Started, this, &AAlchemySimulatorCharacter::DoBackAction);
+		EnhancedInputComponent->BindAction(RotateObjectAction, ETriggerEvent::Triggered, this, &AAlchemySimulatorCharacter::DoRotateObjectAction);
 	}
 	else
 	{
@@ -156,5 +158,23 @@ void AAlchemySimulatorCharacter::DoBackAction()
 		Cast<AAlchemySimulatorPlayerController>(GetController()))
 	{
 		PC->DoBack();
+	}
+}
+
+void AAlchemySimulatorCharacter::DoRotateObjectAction(const FInputActionValue& Value)
+{
+	if (AAlchemySimulatorPlayerController* PC =
+		Cast<AAlchemySimulatorPlayerController>(GetController()))
+	{
+		PC->RotateDraggedItem(Value);
+	}
+}
+
+void AAlchemySimulatorCharacter::DoStopLeftMouseAction()
+{
+	if (AAlchemySimulatorPlayerController* PC =
+		Cast<AAlchemySimulatorPlayerController>(GetController()))
+	{
+		PC->StopLeftMouseAction();
 	}
 }

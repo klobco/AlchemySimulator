@@ -25,6 +25,11 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<class UBoxComponent> DropZone;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	TObjectPtr<class UBoxComponent> MovingZone;
+
+	FVector ClampLocationToWorkbench(const FVector& WorldLocation) const;
+
 	UFUNCTION(BlueprintCallable)
 	bool TryPlaceDraggedItem(class UInvDragOperation* DragOp, const FHitResult& Hit);
 

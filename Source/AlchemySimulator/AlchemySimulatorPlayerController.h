@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "InputActionValue.h"
 #include "AlchemySimulatorPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -119,6 +120,35 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UWidgetStackManager> WidgetManager;
 
+	virtual void PlayerTick(float DeltaTime) override;
+
+	UFUNCTION()
+	void StartWorldDrag(AActor* ActorToDrag);
+
+	UFUNCTION()
+	void StopWorldDrag();
+
+	UFUNCTION()
+	void RotateDraggedItem(const FInputActionValue& Value);
+
+	UFUNCTION()
+	void StopLeftMouseAction();
+
 private:
 	void DebugClick();
+
+	UPROPERTY()
+	AActor* DraggedActor = nullptr;
+
+	bool bIsDraggingWorldActor = false;
+
+	// Výška/rovina, po ktorej budeme ťahať objekt
+	FVector DragPlaneOrigin = FVector::ZeroVector;
+	FVector DragPlaneNormal = FVector::UpVector;
+
+	// Offset, aby objekt neskočil presne stredom pod myš
+	FVector DragOffset = FVector::ZeroVector;
+
+	// Voliteľné: citlivosť rotácie
+	float RotationSpeed = 90.0f;
 };

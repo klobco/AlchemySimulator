@@ -19,6 +19,11 @@ ABasicWorkbench::ABasicWorkbench() {
 	toolsInventory->MaxSlots = ToolsLimit;
 	herbsInventory->MaxSlots = HerbsLimit;
 
+
+	MovingZone = CreateDefaultSubobject<UBoxComponent>(TEXT("MovingZone"));
+	MovingZone->SetupAttachment(RootComponent);
+	MovingZone->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	DropZone = CreateDefaultSubobject<UBoxComponent>(TEXT("DropZone"));
 	DropZone->SetupAttachment(RootComponent);
 	DropZone->ComponentTags.Add(TEXT("WorkbenchDropZone"));
@@ -149,7 +154,6 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 
 	// DrawDebugSphere(GetWorld(), SpawnLocation, 10.f, 12, FColor::Red, true);
 	SpawnLocation = Body->GetSocketLocation("ManipulationSocket");
-	
 
 	FRotator SpawnRotation = GetActorRotation();
 
@@ -211,4 +215,31 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 		}
 
 	return true;
+}
+
+
+FVector ABasicWorkbench::ClampLocationToWorkbench(const FVector& WorldLocation) const
+{
+	if (!MovingZone)
+	{
+		return WorldLocation;
+	}
+
+	const FTransform AreaTransform = MovingZone->GetComponentTransform();
+
+	// World -> Local
+	FVector LocalLocation = AreaTransform.InverseTransformPosition(WorldLocation);
+
+	const FVector Extent = MovingZone->GetScaledBoxExtent();
+
+	LocalLocation.X = FMath::Clamp(LocalLocation.X, -Extent.X, Extent.X);
+	LocalLocation.Y = FMath::Clamp(LocalLocation.Y, -Extent.Y, Extent.Y);
+
+	// Z väčšiny prípadov nechceš clampovať Z podľa boxu,
+	// lebo výšku objektu rieši drag plane.
+	// Ale môžeš ho uzamknúť na stred boxu:
+	LocalLocation.Z = 0.0f;
+
+	// Local -> World
+	return AreaTransform.TransformPosition(LocalLocation);
 }

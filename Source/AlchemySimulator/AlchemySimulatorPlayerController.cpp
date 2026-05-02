@@ -125,6 +125,9 @@ void AAlchemySimulatorPlayerController::OnFocusedChanged(UObject* NewObj, UObjec
 
 void AAlchemySimulatorPlayerController::DoInteract()
 {
+
+	if(bIsDraggingWorldActor) return;
+
 	if (CurrentTarget != nullptr)
 	{
 		if (!Interacting)
@@ -352,4 +355,112 @@ bool AAlchemySimulatorPlayerController::TryHandleWorldDropFromScreenPosition(UIn
 	}
 
 	return false;
+}
+
+void AAlchemySimulatorPlayerController::StartWorldDrag(AActor* ActorToDrag)
+{
+
+	UE_LOG(LogTemp, Warning, TEXT("Starting world drag for actor: %s"), *GetNameSafe(ActorToDrag));
+	if (!ActorToDrag)
+	{
+		return;
+	}
+
+	DraggedActor = ActorToDrag;
+	bIsDraggingWorldActor = true;
+
+	// Rovina dragovania bude vo výške aktuálnej rastliny.
+	// Čiže rastlina sa bude hýbať po horizontálnej rovine.
+	DragPlaneOrigin = ActorToDrag->GetActorLocation();
+	DragPlaneNormal = FVector::UpVector;
+
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit))
+	{
+		DragOffset = ActorToDrag->GetActorLocation() - Hit.Location;
+	}
+	else
+	{
+		DragOffset = FVector::ZeroVector;
+	}
+
+	bShowMouseCursor = true;
+}
+
+void AAlchemySimulatorPlayerController::StopWorldDrag()
+{
+	bIsDraggingWorldActor = false;
+	DraggedActor = nullptr;
+	DragOffset = FVector::ZeroVector;
+}
+
+void AAlchemySimulatorPlayerController::RotateDraggedItem(const FInputActionValue& Value)
+{
+	if (!bIsDraggingWorldActor || !DraggedActor)
+	{
+		return;
+	}
+
+	const float AxisValue = Value.Get<float>();
+
+	if (FMath::IsNearlyZero(AxisValue))
+	{
+		return;
+	}
+
+	const float DeltaSeconds = GetWorld()->GetDeltaSeconds();
+
+	FRotator CurrentRotation = DraggedActor->GetActorRotation();
+	CurrentRotation.Yaw += AxisValue * RotationSpeed * DeltaSeconds;
+
+	DraggedActor->SetActorRotation(CurrentRotation);
+}
+
+void AAlchemySimulatorPlayerController::PlayerTick(float DeltaTime)
+{
+	Super::PlayerTick(DeltaTime);
+
+	if (!bIsDraggingWorldActor || !DraggedActor)
+	{
+		return;
+	}
+
+	FVector WorldOrigin;
+	FVector WorldDirection;
+
+	if (!DeprojectMousePositionToWorld(WorldOrigin, WorldDirection))
+	{
+		return;
+	}
+
+	// Vytvoríme dlhú ray čiaru z kamery cez kurzor
+	const FVector TraceEnd = WorldOrigin + WorldDirection * 100000.0f;
+
+	// Nájdeme priesečník ray-u s horizontálnou rovinou
+	const FPlane DragPlane(DragPlaneOrigin, DragPlaneNormal);
+	const FVector NewLocation = FMath::LinePlaneIntersection(
+		WorldOrigin,
+		TraceEnd,
+		DragPlane
+	);
+
+	FVector TargetLocation = NewLocation + DragOffset;
+	if (CurrentStation)
+	{
+		ABasicWorkbench* CurrentWorkbench = Cast<ABasicWorkbench>(CurrentStation);
+		if (CurrentWorkbench)
+		{
+			TargetLocation = CurrentWorkbench->ClampLocationToWorkbench(TargetLocation);
+		}
+	}
+
+	DraggedActor->SetActorLocation(TargetLocation);
+}
+
+void AAlchemySimulatorPlayerController::StopLeftMouseAction()
+{
+	if (bIsDraggingWorldActor)
+	{
+		StopWorldDrag();
+	}
 }
