@@ -234,12 +234,7 @@ FVector ABasicWorkbench::ClampLocationToWorkbench(const FVector& WorldLocation) 
 
 	LocalLocation.X = FMath::Clamp(LocalLocation.X, -Extent.X, Extent.X);
 	LocalLocation.Y = FMath::Clamp(LocalLocation.Y, -Extent.Y, Extent.Y);
+	// Z is intentionally not clamped — the drag plane already locks the correct height
 
-	// Z väčšiny prípadov nechceš clampovať Z podľa boxu,
-	// lebo výšku objektu rieši drag plane.
-	// Ale môžeš ho uzamknúť na stred boxu:
-	LocalLocation.Z = 0.0f;
-
-	// Local -> World
 	return AreaTransform.TransformPosition(LocalLocation);
 }

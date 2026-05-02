@@ -23,6 +23,7 @@
 #include "BaseGameWidget.h"
 #include "WidgetStackManager.h"
 #include "DrawDebugHelpers.h"
+#include "Components/PrimitiveComponent.h"
 
 AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
 {
@@ -167,6 +168,15 @@ void AAlchemySimulatorPlayerController::DoInteract()
 void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractableStationObject* station)
 {
 	CurrentStation = station;
+	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(CurrentStation))
+	{
+		for (ABasePlant* plant : bench->HerbsOnTable) {
+			if (plant)
+			{
+				plant->Stem->SetSimulatePhysics(true);
+			}
+		}
+	}
 	ACharacter* C = Cast<ACharacter>(GetPawn());
 	if (C)
 	{
@@ -182,6 +192,17 @@ void AAlchemySimulatorPlayerController::RemoveStationController()
 {
 	ResetActiveTool();
 	WidgetManager->CloseAll();
+
+	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(CurrentStation))
+	{
+		for (ABasePlant* plant : bench->HerbsOnTable) {
+			if (plant)
+			{
+				plant->Stem->SetSimulatePhysics(false);
+			}
+		}
+	}
+
 	CurrentStation = nullptr;
 	ACharacter* C = Cast<ACharacter>(GetPawn());
 	if (C)
@@ -369,8 +390,6 @@ void AAlchemySimulatorPlayerController::StartWorldDrag(AActor* ActorToDrag)
 	DraggedActor = ActorToDrag;
 	bIsDraggingWorldActor = true;
 
-	// Rovina dragovania bude vo výške aktuálnej rastliny.
-	// Čiže rastlina sa bude hýbať po horizontálnej rovine.
 	DragPlaneOrigin = ActorToDrag->GetActorLocation();
 	DragPlaneNormal = FVector::UpVector;
 
@@ -384,11 +403,35 @@ void AAlchemySimulatorPlayerController::StartWorldDrag(AActor* ActorToDrag)
 		DragOffset = FVector::ZeroVector;
 	}
 
+	// Disable physics on every simulated component so it doesn't fight SetActorLocation
+	DraggedPhysicsComponents.Empty();
+	TArray<UPrimitiveComponent*> PrimComps;
+	ActorToDrag->GetComponents<UPrimitiveComponent>(PrimComps);
+	for (UPrimitiveComponent* Comp : PrimComps)
+	{
+		if (Comp && Comp->IsSimulatingPhysics())
+		{
+			Comp->SetSimulatePhysics(false);
+			DraggedPhysicsComponents.Add(Comp);
+		}
+	}
+
+	DragSmoothedLocation = ActorToDrag->GetActorLocation();
 	bShowMouseCursor = true;
 }
 
 void AAlchemySimulatorPlayerController::StopWorldDrag()
 {
+	// Re-enable physics on components that were simulating before the drag
+	for (UPrimitiveComponent* Comp : DraggedPhysicsComponents)
+	{
+		if (Comp)
+		{
+			Comp->SetSimulatePhysics(true);
+		}
+	}
+	DraggedPhysicsComponents.Empty();
+
 	bIsDraggingWorldActor = false;
 	DraggedActor = nullptr;
 	DragOffset = FVector::ZeroVector;
@@ -454,7 +497,9 @@ void AAlchemySimulatorPlayerController::PlayerTick(float DeltaTime)
 		}
 	}
 
-	DraggedActor->SetActorLocation(TargetLocation);
+	// Smooth the position to eliminate mouse jitter; speed of 25 keeps it responsive
+	DragSmoothedLocation = FMath::VInterpTo(DragSmoothedLocation, TargetLocation, DeltaTime, 25.0f);
+	DraggedActor->SetActorLocation(DragSmoothedLocation);
 }
 
 void AAlchemySimulatorPlayerController::StopLeftMouseAction()

@@ -151,4 +151,11 @@ private:
 
 	// Voliteľné: citlivosť rotácie
 	float RotationSpeed = 90.0f;
+
+	// Components that had physics disabled for the drag; restored on StopWorldDrag
+	UPROPERTY()
+	TArray<class UPrimitiveComponent*> DraggedPhysicsComponents;
+
+	// Smoothed position written each tick so motion feels stable
+	FVector DragSmoothedLocation = FVector::ZeroVector;
 };
