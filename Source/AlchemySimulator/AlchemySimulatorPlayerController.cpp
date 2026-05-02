@@ -422,7 +422,6 @@ void AAlchemySimulatorPlayerController::StartWorldDrag(AActor* ActorToDrag)
 
 void AAlchemySimulatorPlayerController::StopWorldDrag()
 {
-	// Re-enable physics on components that were simulating before the drag
 	for (UPrimitiveComponent* Comp : DraggedPhysicsComponents)
 	{
 		if (Comp)
@@ -451,12 +450,24 @@ void AAlchemySimulatorPlayerController::RotateDraggedItem(const FInputActionValu
 		return;
 	}
 
-	const float DeltaSeconds = GetWorld()->GetDeltaSeconds();
+	const float YawDelta = AxisValue * RotationSpeed * GetWorld()->GetDeltaSeconds();
 
-	FRotator CurrentRotation = DraggedActor->GetActorRotation();
-	CurrentRotation.Yaw += AxisValue * RotationSpeed * DeltaSeconds;
+	// The grab point is the mouse cursor projected onto the drag plane.
+	// DragOffset is always the vector from that point to the actor pivot,
+	// so subtracting it recovers the grab point.
+	const FVector GrabPoint = DragSmoothedLocation - DragOffset;
 
-	DraggedActor->SetActorRotation(CurrentRotation);
+	// Orbit the offset vector around the grab point (yaw only — no tilt)
+	const FVector RotatedOffset = DragOffset.RotateAngleAxis(YawDelta, FVector::UpVector);
+	DragOffset = RotatedOffset;
+
+	// Place the actor at the new orbited position and spin it the same amount
+	const FVector NewLocation = GrabPoint + RotatedOffset;
+	FRotator NewRotation = DraggedActor->GetActorRotation();
+	NewRotation.Yaw += YawDelta;
+
+	DraggedActor->SetActorLocationAndRotation(NewLocation, NewRotation);
+	DragSmoothedLocation = NewLocation;
 }
 
 void AAlchemySimulatorPlayerController::PlayerTick(float DeltaTime)
@@ -488,6 +499,7 @@ void AAlchemySimulatorPlayerController::PlayerTick(float DeltaTime)
 	);
 
 	FVector TargetLocation = NewLocation + DragOffset;
+	TargetLocation.Z += DragZLift;
 	if (CurrentStation)
 	{
 		ABasicWorkbench* CurrentWorkbench = Cast<ABasicWorkbench>(CurrentStation);

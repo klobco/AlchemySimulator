@@ -149,8 +149,10 @@ private:
 	// Offset, aby objekt neskočil presne stredom pod myš
 	FVector DragOffset = FVector::ZeroVector;
 
-	// Voliteľné: citlivosť rotácie
-	float RotationSpeed = 90.0f;
+	float RotationSpeed = 180.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Drag")
+	float DragZLift = 10.0f;
 
 	// Components that had physics disabled for the drag; restored on StopWorldDrag
 	UPROPERTY()

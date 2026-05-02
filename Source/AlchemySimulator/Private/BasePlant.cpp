@@ -125,6 +125,16 @@ void ABasePlant::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (HerbStatus == EHerbStatus::OnTable && ParentWorkbench && Stem && Stem->IsSimulatingPhysics())
+	{
+		const FVector MyLoc = GetActorLocation();
+		const FVector Clamped = ParentWorkbench->ClampLocationToWorkbench(MyLoc);
+		if (!MyLoc.Equals(Clamped, 0.5f))
+		{
+			SetActorLocation(Clamped, false, nullptr, ETeleportType::TeleportPhysics);
+			Stem->SetPhysicsLinearVelocity(FVector::ZeroVector);
+		}
+	}
 }
 
 FText ABasePlant::GetInteractPrompt_Implementation() const

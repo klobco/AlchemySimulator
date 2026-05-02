@@ -41,6 +41,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	virtual void AddTool(ABaseTool* tool) override;
+	
 
 	UFUNCTION(BlueprintCallable)
 	virtual void RemoveTool(ABaseTool* tool) override;

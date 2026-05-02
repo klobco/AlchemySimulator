@@ -122,9 +122,11 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 	if (!DragOp->SourceInventory) return false;
 	if (!DragOp->SlotSnapshot.Item) return false;
 	if (DragOp->Quantity <= 0) return false;
+	if (HerbsOnTable.Num() >= 2) return false;
 
 	const UItemDefinitionBase* ItemDef = DragOp->SlotSnapshot.Item;
 	if (!ItemDef) return false;
+	if (ItemDef->Category != EItemCategory::Herb) return false;
 
 	if (!CanAcceptDraggedItem(ItemDef))
 	{
@@ -207,7 +209,7 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 
 
 		FInventorySlot RemovedSlot;
-		const bool bRemoved = DragOp->SourceInventory->RemoveAt(DragOp->FromIndex, DragOp->Quantity, RemovedSlot);
+		const bool bRemoved = DragOp->SourceInventory->RemoveAt(DragOp->FromIndex, 1, RemovedSlot);
 		if (!bRemoved)
 		{
 			SpawndedActor->Destroy();
@@ -234,6 +236,7 @@ FVector ABasicWorkbench::ClampLocationToWorkbench(const FVector& WorldLocation) 
 
 	LocalLocation.X = FMath::Clamp(LocalLocation.X, -Extent.X, Extent.X);
 	LocalLocation.Y = FMath::Clamp(LocalLocation.Y, -Extent.Y, Extent.Y);
+	LocalLocation.Z = FMath::Clamp(LocalLocation.Z, -Extent.Z, Extent.Z);
 	// Z is intentionally not clamped — the drag plane already locks the correct height
 
 	return AreaTransform.TransformPosition(LocalLocation);
