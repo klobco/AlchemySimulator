@@ -43,6 +43,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	TObjectPtr<const class UItemDefinitionBase> Item;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
+	TSubclassOf<class UAlchemyCutMinigameWidget> CuttingMinigameWidgetClass;
+
 	UPROPERTY()
 	class ABasicWorkbench* ParentWorkbench;
 
@@ -63,6 +66,9 @@ public:
 
 	UFUNCTION()
 	void HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed);
+
+	UFUNCTION()
+	void OnCuttingFinished(bool bSuccess);
 
 	void SetPlantHighlight(bool bEnabled);
 

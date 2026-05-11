@@ -10,6 +10,8 @@
 #include "DrawDebugHelpers.h"
 #include "BasicWorkbench.h"
 #include "Components/BoxComponent.h"
+#include "MinigameManagerComponent.h"
+#include "AlchemyCutMinigameWidget.h"
 #include "ItemDefinitionBase.h"
 
 // Sets default values
@@ -103,8 +105,23 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 
 			if (tool->Item->Category == EItemCategory::Knife)
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Not null index tools"));
-				Component->SetVisibility(false,false);
+				APlayerController* PC = GetWorld()->GetFirstPlayerController();
+				if (!PC) return;
+
+				AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
+				if (!MyPC) return;
+
+				if (!MyPC->MinigameManager) return;
+
+				MyPC->MinigameManager->OnMinigameFinished.AddDynamic(this, &ABasePlant::OnCuttingFinished);
+				MyPC->MinigameManager->StartMinigame(CuttingMinigameWidgetClass);
+
+				TArray<UStaticMeshComponent*> Meshes;
+				GetComponents<UStaticMeshComponent>(Meshes);
+				for (UStaticMeshComponent* Mesh : Meshes)
+				{
+					Mesh->SetVisibility(false);
+				}
 			}
 		}
 
@@ -134,6 +151,30 @@ void ABasePlant::Tick(float DeltaTime)
 			SetActorLocation(Clamped, false, nullptr, ETeleportType::TeleportPhysics);
 			Stem->SetPhysicsLinearVelocity(FVector::ZeroVector);
 		}
+	}
+}
+
+void ABasePlant::OnCuttingFinished(bool bSuccess)
+{
+	if (AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		MyPC->MinigameManager->OnMinigameFinished.RemoveDynamic(this, &ABasePlant::OnCuttingFinished);
+	}
+
+	TArray<UStaticMeshComponent*> Meshes;
+	GetComponents<UStaticMeshComponent>(Meshes);
+	for (UStaticMeshComponent* Mesh : Meshes)
+	{
+		Mesh->SetVisibility(true);
+	}
+
+	if (bSuccess)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cutting succeeded"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cutting failed"));
 	}
 }
 

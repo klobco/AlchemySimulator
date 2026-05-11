@@ -12,6 +12,7 @@ void UWidgetStackManager::PushWidget(UBaseGameWidget* Widget)
 {
 	if (!Widget) return;
 
+	
 	const int32 ZOrder = BaseZOrder + WidgetStack.Num();
 	WidgetStack.Add(Widget);
 	Widget->AddToViewport(ZOrder);
@@ -34,7 +35,6 @@ void UWidgetStackManager::PopWidget()
 
 void UWidgetStackManager::CloseAll()
 {
-	// Pop from top down, bypassing CanClose — we're force-exiting the whole stack.
 	while (!WidgetStack.IsEmpty())
 	{
 		UBaseGameWidget* Top = WidgetStack.Pop();

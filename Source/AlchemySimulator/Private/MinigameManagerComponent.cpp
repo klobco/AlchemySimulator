@@ -2,53 +2,57 @@
 
 
 #include "MinigameManagerComponent.h"
-#include "Blueprint/UserWidget.h"
+#include "AlchemyMinigameWidget.h"
+#include "AlchemySimulatorPlayerController.h"
+#include "WidgetStackManager.h"
 
-// Sets default values for this component's properties
 UMinigameManagerComponent::UMinigameManagerComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = true;
-
-	// ...
+	PrimaryComponentTick.bCanEverTick = false;
 }
 
-
-// Called when the game starts
 void UMinigameManagerComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// ...
-	
 }
 
-
-// Called every frame
-void UMinigameManagerComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// ...
-}
-
-void UMinigameManagerComponent::StartMinigame(TSubclassOf<UUserWidget> MinigameWidgetClass)
+void UMinigameManagerComponent::StartMinigame(TSubclassOf<UAlchemyMinigameWidget> MinigameWidgetClass)
 {
     if (!MinigameWidgetClass) return;
 
-    APlayerController* PC = Cast<APlayerController>(GetOwner());
+    AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner());
     if (!PC) return;
 
-    ActiveMinigameWidget = CreateWidget<UUserWidget>(PC, MinigameWidgetClass);
+    PC->WidgetManager->CloseAll();
+    bWasInStation = PC->Interacting;
 
     if (ActiveMinigameWidget)
     {
+        StopMinigame();
+    }
+
+
+
+
+
+    ActiveMinigameWidget = CreateWidget<UAlchemyMinigameWidget>(PC, MinigameWidgetClass);
+
+    if (ActiveMinigameWidget)
+    {
+        ActiveMinigameWidget->OnMinigameFinished.AddDynamic(this, &UMinigameManagerComponent::HandleMinigameFinished);
         ActiveMinigameWidget->AddToViewport();
 
-        PC->SetInputMode(FInputModeUIOnly());
+        FInputModeUIOnly InputMode;
+        InputMode.SetWidgetToFocus(ActiveMinigameWidget->TakeWidget());
+        PC->SetInputMode(InputMode);
         PC->bShowMouseCursor = true;
     }
+}
+
+void UMinigameManagerComponent::HandleMinigameFinished(bool bSuccess)
+{
+    StopMinigame();
+    OnMinigameFinished.Broadcast(bSuccess);
 }
 
 void UMinigameManagerComponent::StopMinigame()
@@ -58,11 +62,22 @@ void UMinigameManagerComponent::StopMinigame()
 		ActiveMinigameWidget->RemoveFromParent();
 		ActiveMinigameWidget = nullptr;
 
-		APlayerController* PC = Cast<APlayerController>(GetOwner());
+		AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner());
 		if (PC)
 		{
-			PC->SetInputMode(FInputModeGameOnly());
-			PC->bShowMouseCursor = false;
+			if (bWasInStation)
+			{
+				FInputModeGameAndUI StationInputMode;
+				StationInputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+				PC->SetInputMode(StationInputMode);
+				PC->bShowMouseCursor = true;
+			}
+			else
+			{
+				PC->SetInputMode(FInputModeGameOnly());
+				PC->bShowMouseCursor = false;
+			}
+			bWasInStation = false;
 		}
 	}
 }

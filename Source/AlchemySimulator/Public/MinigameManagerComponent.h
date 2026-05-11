@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "AlchemyMinigameWidget.h"
 #include "MinigameManagerComponent.generated.h"
 
 
@@ -12,27 +13,29 @@ class ALCHEMYSIMULATOR_API UMinigameManagerComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
-	// Sets default values for this component's properties
+public:
 	UMinigameManagerComponent();
 
 protected:
-	// Called when the game starts
 	virtual void BeginPlay() override;
 
-public:	
-	// Called every frame
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+public:
+    UPROPERTY(BlueprintAssignable)
+    FOnMinigameFinished OnMinigameFinished;
 
     UFUNCTION(BlueprintCallable)
-    void StartMinigame(TSubclassOf<UUserWidget> MinigameWidgetClass);
+    void StartMinigame(TSubclassOf<UAlchemyMinigameWidget> MinigameWidgetClass);
 
 	UFUNCTION(BlueprintCallable)
     void StopMinigame();
 
 private:
-
     UPROPERTY()
-    TObjectPtr<UUserWidget> ActiveMinigameWidget;
-		
+    TObjectPtr<UAlchemyMinigameWidget> ActiveMinigameWidget;
+
+    bool bWasInStation = false;
+
+    UFUNCTION()
+    void HandleMinigameFinished(bool bSuccess);
+
 };

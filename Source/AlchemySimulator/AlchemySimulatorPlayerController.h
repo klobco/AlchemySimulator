@@ -91,6 +91,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void PopWidget();
 
+	UPROPERTY(EditAnywhere)
 	class AInteractionCameraRig* InteractionRig;
 
 	UPROPERTY()
@@ -119,6 +120,9 @@ public:
 	/** The modal widget stack. Use PushWidget/PopWidget rather than accessing this directly. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UWidgetStackManager> WidgetManager;
+
+	UPROPERTY()
+	class UMinigameManagerComponent* MinigameManager = nullptr;
 
 	virtual void PlayerTick(float DeltaTime) override;
 

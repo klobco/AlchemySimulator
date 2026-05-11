@@ -15,11 +15,14 @@
 #include "GameFramework/Character.h"
 #include "BasePlant.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "AlchemySimulatorCharacter.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "InvDragOperation.h"
 #include "BasicWorkbench.h"
 #include "CustomCursorWidget.h"
 #include "BaseTool.h"
 #include "ItemDefinitionBase.h"
+#include "MinigameManagerComponent.h"
 #include "BaseGameWidget.h"
 #include "WidgetStackManager.h"
 #include "DrawDebugHelpers.h"
@@ -28,6 +31,7 @@
 AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
 {
 	WidgetManager = CreateDefaultSubobject<UWidgetStackManager>(TEXT("WidgetManager"));
+	MinigameManager = CreateDefaultSubobject<UMinigameManagerComponent>(TEXT("MinigameManager"));
 }
 
 void AAlchemySimulatorPlayerController::BeginPlay()
@@ -48,6 +52,7 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 		{
 			InteractionRig->SetActorHiddenInGame(true);
 			InteractionRig->SetActorEnableCollision(false);
+			InteractionRig->CameraArm->bDoCollisionTest = false;
 		}
 	}
 
@@ -180,6 +185,9 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 	ACharacter* C = Cast<ACharacter>(GetPawn());
 	if (C)
 	{
+		if(AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(C)){
+			AlchemyChar->GetMesh()->SetHiddenInGame(true, true);
+		}
 		bEnableMouseOverEvents = true;
 		bEnableClickEvents = true;
 		bShowMouseCursor = true;
@@ -207,6 +215,9 @@ void AAlchemySimulatorPlayerController::RemoveStationController()
 	ACharacter* C = Cast<ACharacter>(GetPawn());
 	if (C)
 	{
+		if(AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(C)){
+			AlchemyChar->GetMesh()->SetHiddenInGame(false, true);
+		}
 		bEnableMouseOverEvents = false;
 		bEnableClickEvents = false;
 		bShowMouseCursor = false;
@@ -352,6 +363,8 @@ bool AAlchemySimulatorPlayerController::TryHandleWorldDropFromScreenPosition(UIn
 {
 	if (!DragOp) return false;
 	if (DragOp->bDropHandledByUI) return false;
+
+	UE_LOG(LogTemp, Warning, TEXT("Trying to handle world drop from screen position: %s"), *ScreenPos.ToString());
 
 	FHitResult Hit;
 	if (!TraceFromScreenPosition(ScreenPos, Hit))
