@@ -74,9 +74,9 @@ void ABaseTool::Interact_Implementation(APawn* By)
 	{
 		if (player->inventory->AddItem(Item, 1, Instance)) {
 			Destroy();
+			UE_LOG(LogTemp, Error, TEXT("Adding tool : %s"), *GetNameSafe(Item));
 		}
 	}
-	UE_LOG(LogTemp, Error, TEXT("Interact with knife"));
 }
 
 void ABaseTool::OnFocStart_Implementation(APawn* By)
