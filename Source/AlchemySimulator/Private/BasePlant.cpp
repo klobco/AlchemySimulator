@@ -9,6 +9,7 @@
 #include "ItemDefinitionBase.h"
 #include "DrawDebugHelpers.h"
 #include "BasicWorkbench.h"
+#include "ItemMetadata.h"
 #include "Components/BoxComponent.h"
 #include "MinigameManagerComponent.h"
 #include "AlchemyCutMinigameWidget.h"
@@ -46,8 +47,11 @@ void ABasePlant::BeginPlay()
 
 	for (UStaticMeshComponent* comp : MeshComponents) {
 
+		if (!comp) continue;
 		comp->OnBeginCursorOver.AddDynamic(this, &ABasePlant::HandleBeginCursorOver);
 		comp->OnEndCursorOver.AddDynamic(this, &ABasePlant::HandleEndCursorOver);
+
+		if (comp == Stem) continue;
 		comp->OnClicked.AddDynamic(this, &ABasePlant::HandleClicked);
 
 	}
@@ -111,17 +115,23 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 				AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
 				if (!MyPC) return;
 
+
+
 				if (!MyPC->MinigameManager) return;
+
+				InteractedPart = Cast<UStaticMeshComponent>(Component);
+				if (!InteractedPart) return;
+
+				if (InteractedPart == Stem){
+					
+					UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cannot cut stem while leafs are still visible"));
+					return;
+				}
 
 				MyPC->MinigameManager->OnMinigameFinished.AddDynamic(this, &ABasePlant::OnCuttingFinished);
 				MyPC->MinigameManager->StartMinigame(CuttingMinigameWidgetClass);
 
-				TArray<UStaticMeshComponent*> Meshes;
-				GetComponents<UStaticMeshComponent>(Meshes);
-				for (UStaticMeshComponent* Mesh : Meshes)
-				{
-					Mesh->SetVisibility(false);
-				}
+				return;
 			}
 		}
 
@@ -161,16 +171,60 @@ void ABasePlant::OnCuttingFinished(bool bSuccess)
 		MyPC->MinigameManager->OnMinigameFinished.RemoveDynamic(this, &ABasePlant::OnCuttingFinished);
 	}
 
-	TArray<UStaticMeshComponent*> Meshes;
-	GetComponents<UStaticMeshComponent>(Meshes);
-	for (UStaticMeshComponent* Mesh : Meshes)
-	{
-		Mesh->SetVisibility(true);
-	}
-
 	if (bSuccess)
 	{
+		
 		UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cutting succeeded"));
+
+		FItemInstanceData newInstance = Instance;
+		newInstance.Quality = FMath::Clamp(newInstance.Quality - 20, 0, 100);
+
+        if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+        {
+            if (APawn* P = PC->GetPawn())
+            {
+                if (UInventoryComponent* Inv = P->FindComponentByClass<UInventoryComponent>())
+                {
+					const FString PartName = InteractedPart->GetName();
+
+					
+					if (PartName.Contains(TEXT("Stem")))
+					{
+						Inv->AddItem(StemItem, 1,newInstance);
+					}
+					else if (PartName.Contains(TEXT("Leaf")))
+					{
+						Inv->AddItem(LeafItem, 1,newInstance);
+					}
+					else if (PartName.Contains(TEXT("Fruit")))
+					{
+						UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory"));
+						bool was = Inv->AddItem(FruitItem, 1,newInstance);
+						UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory result: %s"), was ? TEXT("true") : TEXT("false"));
+					}
+                }
+            }
+        }
+
+		if (InteractedPart)
+		{
+			InteractedPart->SetVisibility(false);
+			InteractedPart->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+
+		TArray<UStaticMeshComponent*> MeshComponents;
+		GetComponents<UStaticMeshComponent>(MeshComponents);
+		int32 visibleParts = 0;
+		for (UStaticMeshComponent* comp : MeshComponents) {
+			if (comp->IsVisible()) visibleParts++;
+		}
+
+		if (visibleParts == 1)
+		{
+			GetWorld()->GetFirstPlayerController()->GetPawn()->FindComponentByClass<UInventoryComponent>()->AddItem(StemItem, 1,newInstance);
+			UE_LOG(LogTemp, Warning, TEXT("[BasePlant] All parts cut, destroying plant"));
+			Destroy();
+		}
 	}
 	else
 	{

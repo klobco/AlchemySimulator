@@ -40,8 +40,23 @@ public:
 	UPROPERTY(EditAnywhere, Category = "components")
 	UStaticMeshComponent* Fruit;
 
+	UPROPERTY(EditDefaultsOnly, Category = "components")
+	int32 LeafCount = 2;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	TObjectPtr<const class UItemDefinitionBase> Item;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	TObjectPtr<const class UItemDefinitionBase> StemItem;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	TObjectPtr<const class UItemDefinitionBase> LeafItem;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	TObjectPtr<const class UItemDefinitionBase> FruitItem;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Item")
+	UStaticMeshComponent* InteractedPart;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
 	TSubclassOf<class UAlchemyCutMinigameWidget> CuttingMinigameWidgetClass;

@@ -68,6 +68,7 @@ void UMinigameManagerComponent::StopMinigame()
 			if (bWasInStation)
 			{
 				FInputModeGameAndUI StationInputMode;
+				StationInputMode.SetHideCursorDuringCapture(false);
 				StationInputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 				PC->SetInputMode(StationInputMode);
 				PC->bShowMouseCursor = true;
