@@ -75,7 +75,9 @@ void UMinigameManagerComponent::StopMinigame()
 			}
 			else
 			{
-				PC->SetInputMode(FInputModeGameOnly());
+				FInputModeGameOnly GameOnlyMode;
+				GameOnlyMode.SetConsumeCaptureMouseDown(false);
+				PC->SetInputMode(GameOnlyMode);
 				PC->bShowMouseCursor = false;
 			}
 			bWasInStation = false;

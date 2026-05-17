@@ -22,18 +22,6 @@ enum class EItemCategory : uint8
     Potion
 };
 
-UENUM(BlueprintType)
-enum class EIngredientPart : uint8
-{
-    None,
-    Whole,
-    Leaf,
-    Stem,
-    Root,
-    Fruit,
-    Flower
-};
-
 /**
  * 
  */
@@ -67,16 +55,9 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|World")
     TSubclassOf<class AActor> WorldItem = nullptr;
 
-    // --- Workbench cursor ---
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Workbench")
-    TObjectPtr<UTexture2D> WorkbenchCursor = nullptr;
-
     // --- Categorization ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Category")
     EItemCategory Category = EItemCategory::None;
-
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Category")
-    EIngredientPart Part = EIngredientPart::None;
 
     // Gameplay tags for filtering, crafting rules, effects, tools, etc.
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tags")

@@ -63,6 +63,16 @@ void ABasicWorkbench::AddTool(ABaseTool* tool) {
 
 		tool->SetActorRelativeRotation(FRotator(90.f, 0.f, 0.f));
 	}
+	else if (tool->Item->Category == EItemCategory::Tool) {
+		FName SocketName = FName(*FString::Printf(TEXT("Tool%d"), SlotIndex));
+		UE_LOG(LogTemp, Error, TEXT("Socket name is %s"), *SocketName.ToString());
+
+		tool->AttachToComponent(
+			Body,
+			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
+			SocketName
+		);
+	}
 	else
 	{
 		FName SocketName = FName(*FString::Printf(TEXT("Socket%d"), SlotIndex));
@@ -73,6 +83,7 @@ void ABasicWorkbench::AddTool(ABaseTool* tool) {
 			FAttachmentTransformRules::SnapToTargetNotIncludingScale,
 			SocketName
 		);
+		
 	}
 
 	Tools.Add(SlotIndex, tool);
@@ -193,7 +204,7 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 
 			HerbsOnTable.Add(SpawnedPlant);
 
-			SpawnedPlant->Item = CurrentSlot.Item;
+			SpawnedPlant->Item = Cast<UPlantItemDefinition>(CurrentSlot.Item.Get());
 			SpawnedPlant->Instance = CurrentSlot.Instance;
 
 			SpawnedPlant->ParentWorkbench = this;

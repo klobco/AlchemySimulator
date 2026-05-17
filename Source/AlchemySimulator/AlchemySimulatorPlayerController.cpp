@@ -223,6 +223,10 @@ void AAlchemySimulatorPlayerController::RemoveStationController()
 		bShowMouseCursor = false;
 		SetIgnoreLookInput(false);
 		SetIgnoreMoveInput(false);
+
+		FInputModeGameOnly GameMode;
+		GameMode.SetConsumeCaptureMouseDown(false);
+		SetInputMode(GameMode);
 	}
 }
 

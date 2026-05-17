@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "ItemMetadata.h"
 #include "IInteractable.h"
+#include "ToolItemDefinition.h"
 #include "BaseTool.generated.h"
 
 UCLASS()
@@ -21,7 +22,7 @@ public:
 	class UStaticMeshComponent* ToolMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "tool")
-	class UItemDefinitionBase* Item;
+	UToolItemDefinition* Item;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "tool")
 	FItemInstanceData Instance;

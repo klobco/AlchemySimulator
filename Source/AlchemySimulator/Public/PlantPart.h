@@ -6,7 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "IInteractable.h"
 #include "ItemMetadata.h"
-#include "ItemDefinitionBase.h"
+#include "PlantItemDefinition.h"
 #include "PlantPart.generated.h"
 
 UCLASS()
@@ -25,7 +25,7 @@ public:
 	FItemInstanceData Instance;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const class UItemDefinitionBase> Item;
+	TObjectPtr<const UPlantItemDefinition> Item;
 
 protected:
 	// Called when the game starts or when spawned

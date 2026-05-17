@@ -2,7 +2,7 @@
 
 #include "AlchemySimulatorCharacter.h"
 #include "InventoryComponent.h"
-#include "ItemDefinitionBase.h"
+#include "ToolItemDefinition.h"
 #include "BaseTool.h"
 #include "AlchemySimulatorPlayerController.h"
 
@@ -20,9 +20,17 @@ void ABaseTool::BeginPlay()
 {
 	Super::BeginPlay();
 
-	ToolMesh->OnBeginCursorOver.AddDynamic(this, &ABaseTool::HandleBeginCursorOver);
-	ToolMesh->OnEndCursorOver.AddDynamic(this, &ABaseTool::HandleEndCursorOver);
-	ToolMesh->OnClicked.AddDynamic(this, &ABaseTool::HandleClicked);
+	TArray<UStaticMeshComponent*> Meshes;
+	GetComponents<UStaticMeshComponent>(Meshes);
+
+	for (UStaticMeshComponent* Mesh : Meshes)
+	{
+		if (!Mesh) continue;
+
+		Mesh->OnBeginCursorOver.AddDynamic(this, &ABaseTool::HandleBeginCursorOver);
+		Mesh->OnEndCursorOver.AddDynamic(this, &ABaseTool::HandleEndCursorOver);
+		Mesh->OnClicked.AddDynamic(this, &ABaseTool::HandleClicked);
+	}
 	
 }
 
@@ -30,7 +38,15 @@ void ABaseTool::HandleBeginCursorOver(UPrimitiveComponent* Component)
 {
 	if (OverlayMaterialInstance)
 	{
-		ToolMesh->SetOverlayMaterial(OverlayMaterialInstance);
+		TArray<UStaticMeshComponent*> Meshes;
+		GetComponents<UStaticMeshComponent>(Meshes);
+
+		for (UStaticMeshComponent* Mesh : Meshes)
+		{
+			if (!Mesh) continue;
+
+			Mesh->SetOverlayMaterial(OverlayMaterialInstance);
+		}
 	}
 }
 
@@ -38,7 +54,15 @@ void ABaseTool::HandleEndCursorOver(UPrimitiveComponent* Component)
 {
 	if (OverlayMaterialInstance)
 	{
-		ToolMesh->SetOverlayMaterial(nullptr);
+		TArray<UStaticMeshComponent*> Meshes;
+		GetComponents<UStaticMeshComponent>(Meshes);
+
+		for (UStaticMeshComponent* Mesh : Meshes)
+		{
+			if (!Mesh) continue;
+
+			Mesh->SetOverlayMaterial(nullptr);
+		}
 	}
 }
 

@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "IInteractable.h"
 #include "ItemMetadata.h"
+#include "PlantItemDefinition.h"
 #include "BasePlant.generated.h"
 
 UENUM(BlueprintType)
@@ -44,16 +45,16 @@ public:
 	int32 LeafCount = 2;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const class UItemDefinitionBase> Item;
+	TObjectPtr<const UPlantItemDefinition> Item;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const class UItemDefinitionBase> StemItem;
+	TObjectPtr<const UPlantItemDefinition> StemItem;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const class UItemDefinitionBase> LeafItem;
+	TObjectPtr<const UPlantItemDefinition> LeafItem;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const class UItemDefinitionBase> FruitItem;
+	TObjectPtr<const UPlantItemDefinition> FruitItem;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Item")
 	UStaticMeshComponent* InteractedPart;

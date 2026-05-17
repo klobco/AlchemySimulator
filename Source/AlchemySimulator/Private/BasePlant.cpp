@@ -6,14 +6,14 @@
 #include "AlchemySimulatorPlayerController.h"
 #include "InventoryComponent.h"
 #include "BaseTool.h"
-#include "ItemDefinitionBase.h"
+#include "PlantItemDefinition.h"
 #include "DrawDebugHelpers.h"
 #include "BasicWorkbench.h"
 #include "ItemMetadata.h"
 #include "Components/BoxComponent.h"
 #include "MinigameManagerComponent.h"
 #include "AlchemyCutMinigameWidget.h"
-#include "ItemDefinitionBase.h"
+#include "PlantItemDefinition.h"
 
 // Sets default values
 ABasePlant::ABasePlant()
@@ -50,8 +50,6 @@ void ABasePlant::BeginPlay()
 		if (!comp) continue;
 		comp->OnBeginCursorOver.AddDynamic(this, &ABasePlant::HandleBeginCursorOver);
 		comp->OnEndCursorOver.AddDynamic(this, &ABasePlant::HandleEndCursorOver);
-
-		if (comp == Stem) continue;
 		comp->OnClicked.AddDynamic(this, &ABasePlant::HandleClicked);
 
 	}
