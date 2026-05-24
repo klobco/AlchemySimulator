@@ -34,10 +34,13 @@ public:
 	bool TryPlaceDraggedItem(class UInvDragOperation* DragOp, const FHitResult& Hit);
 
 	UFUNCTION(BlueprintCallable)
+	bool RemoveHerbItem(AActor* HerbToRemove);
+
+	UFUNCTION(BlueprintCallable)
 	bool CanAcceptDraggedItem(const class UItemDefinitionBase* ItemDef) const;
 
 	UPROPERTY(EditAnywhere, Category = "herbs")
-	TArray<class ABasePlant*> HerbsOnTable;
+	TArray<class AActor*> HerbsOnTable;
 
 	UFUNCTION(BlueprintCallable)
 	virtual void AddTool(ABaseTool* tool) override;

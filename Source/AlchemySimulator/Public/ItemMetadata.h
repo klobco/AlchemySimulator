@@ -8,6 +8,13 @@
 
 class UItemDefinitionBase;
 
+UENUM(BlueprintType)
+enum class EHerbStatus : uint8
+{
+	Inventory,
+	OnStand,
+	OnTable
+};
 
 USTRUCT(BlueprintType)
 struct ALCHEMYSIMULATOR_API FItemInstanceData
@@ -15,7 +22,7 @@ struct ALCHEMYSIMULATOR_API FItemInstanceData
     GENERATED_BODY()
 
 public:
-    // Zatia¾ nechaj prázdne alebo sem neskôr pridaj:
+    // Zatiaï¿½ nechaj prï¿½zdne alebo sem neskï¿½r pridaj:
     // Quality, Freshness, Durability, CraftedBy, etc.
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 Quality = 100;

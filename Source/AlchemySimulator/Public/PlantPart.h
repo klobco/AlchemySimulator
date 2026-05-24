@@ -27,6 +27,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	TObjectPtr<const UPlantItemDefinition> Item;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
+	TSubclassOf<class UPestleMortarMinigame> PestleMortarMinigameWidgetClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
+	UMaterialInstance* OverlayMaterialInstance;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Item")
+	EHerbStatus HerbStatus;
+
+	UPROPERTY()
+	class ABasicWorkbench* ParentWorkbench = nullptr;
+
+	UFUNCTION()
+	void HandleBeginCursorOver(UPrimitiveComponent* Component);
+
+	UFUNCTION()
+	void OnPestleFinished(bool bSuccess);
+
+	UFUNCTION()
+	void HandleEndCursorOver(UPrimitiveComponent* Component);
+
+	UFUNCTION()
+	void HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed);
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

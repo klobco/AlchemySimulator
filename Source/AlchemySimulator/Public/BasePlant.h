@@ -9,14 +9,6 @@
 #include "PlantItemDefinition.h"
 #include "BasePlant.generated.h"
 
-UENUM(BlueprintType)
-enum class EHerbStatus : uint8
-{
-	Inventory,
-	OnStand,
-	OnTable
-};
-
 UCLASS()
 class ALCHEMYSIMULATOR_API ABasePlant : public AActor, public IInteractable
 {
@@ -25,9 +17,6 @@ class ALCHEMYSIMULATOR_API ABasePlant : public AActor, public IInteractable
 public:	
 	// Sets default values for this actor's properties
 	ABasePlant();
-
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Plant")
-	//class UBoxComponent* InteractionBounds;
 
 	UPROPERTY(EditAnywhere, Category = "components")
 	class UStaticMeshComponent* Stem;
@@ -61,9 +50,6 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
 	TSubclassOf<class UAlchemyCutMinigameWidget> CuttingMinigameWidgetClass;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
-	TSubclassOf<class UPestleMortarMinigame> PestleMortarMinigameWidgetClass;
 
 	UPROPERTY()
 	class ABasicWorkbench* ParentWorkbench;

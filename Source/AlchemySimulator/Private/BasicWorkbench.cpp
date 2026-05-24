@@ -9,6 +9,7 @@
 #include "InvDragOperation.h"
 #include "Components/BoxComponent.h"
 #include "DrawDebugHelpers.h"
+#include "PlantPart.h"
 #include "BasicWorkbench.h"
 
 ABasicWorkbench::ABasicWorkbench() {
@@ -218,6 +219,35 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 			UE_LOG(LogTemp, Warning, TEXT("Spawned plant %s at location %s and rotation %s"), *SpawnedPlant->GetName(), *SpawnedPlant->GetActorLocation().ToString(), *SpawnedPlant->GetActorRotation().ToString());
 		}
 
+		if (APlantPart* SpawnedPlantPart = Cast<APlantPart>(SpawndedActor))
+		{
+			TArray<UStaticMeshComponent*> MeshComponents;
+			SpawnedPlantPart->GetComponents<UStaticMeshComponent>(MeshComponents);
+
+			SpawnedPlantPart->SetActorScale3D(FVector(0.07f));
+			SpawnedPlantPart->Tags.Empty();
+			for (UStaticMeshComponent* MeshComp : MeshComponents)
+			{
+				if (!MeshComp) continue;
+
+				MeshComp->SetSimulatePhysics(false);
+				MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			}
+
+			HerbsOnTable.Add(SpawnedPlantPart);
+
+			SpawnedPlantPart->Item = Cast<UPlantItemDefinition>(CurrentSlot.Item.Get());
+			SpawnedPlantPart->Instance = CurrentSlot.Instance;
+
+			SpawnedPlantPart->ParentWorkbench = this;
+			SpawnedPlantPart->HerbStatus = EHerbStatus::OnTable;
+
+			SpawnedPlantPart->SetActorLocation(Body->GetSocketLocation("ManipulationSocket"));
+			SpawnedPlantPart->SetActorRotation(FRotator(0.f, -5.f, 90.f));
+
+			UE_LOG(LogTemp, Warning, TEXT("Spawned plant part %s at location %s and rotation %s"), *SpawnedPlantPart->GetName(), *SpawnedPlantPart->GetActorLocation().ToString(), *SpawnedPlantPart->GetActorRotation().ToString());
+		}
+
 
 		FInventorySlot RemovedSlot;
 		const bool bRemoved = DragOp->SourceInventory->RemoveAt(DragOp->FromIndex, 1, RemovedSlot);
@@ -230,6 +260,15 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 	return true;
 }
 
+bool ABasicWorkbench::RemoveHerbItem(AActor* HerbToRemove)
+{
+	if (HerbToRemove)
+	{
+		HerbsOnTable.Remove(HerbToRemove);
+		return true;
+	}
+	return false;
+}
 
 FVector ABasicWorkbench::ClampLocationToWorkbench(const FVector& WorldLocation) const
 {

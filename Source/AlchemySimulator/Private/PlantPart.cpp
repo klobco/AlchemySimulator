@@ -1,33 +1,118 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "AlchemySimulatorCharacter.h"
-#include "InventoryComponent.h"
 #include "PlantPart.h"
+#include "AlchemySimulatorCharacter.h"
+#include "AlchemySimulatorPlayerController.h"
+#include "InventoryComponent.h"
+#include "BasicWorkbench.h"
+#include "BaseTool.h"
+#include "ToolItemDefinition.h"
+#include "PestleMortarMinigame.h"
+#include "MinigameManagerComponent.h"
 
 // Sets default values
 APlantPart::APlantPart()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
+ 	PrimaryActorTick.bCanEverTick = false;
 
 	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
 	RootComponent = Body;
-
-
 }
 
 // Called when the game starts or when spawned
 void APlantPart::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	if (Body)
+	{
+		Body->OnBeginCursorOver.AddDynamic(this, &APlantPart::HandleBeginCursorOver);
+		Body->OnEndCursorOver.AddDynamic(this, &APlantPart::HandleEndCursorOver);
+		Body->OnClicked.AddDynamic(this, &APlantPart::HandleClicked);
+	}
+}
+
+void APlantPart::HandleBeginCursorOver(UPrimitiveComponent* Component)
+{
+	if (Body && OverlayMaterialInstance && Component == Body)
+	{
+		Body->SetOverlayMaterial(OverlayMaterialInstance);
+	}
+}
+
+void APlantPart::HandleEndCursorOver(UPrimitiveComponent* Component)
+{
+	if (Body && Component == Body)
+	{
+		Body->SetOverlayMaterial(nullptr);
+	}
+}
+
+void APlantPart::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed)
+{
+	UE_LOG(LogTemp, Warning, TEXT("[PlantPart::HandleClicked] component: %s"), *GetNameSafe(Component));
+
+	if (HerbStatus != EHerbStatus::OnTable) return;
+	if (!ParentWorkbench) return;
+
+	if (ParentWorkbench->ActiveToolIndex == INDEX_NONE)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (!PC) return;
+		AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
+		if (!MyPC) return;
+		MyPC->StartWorldDrag(this);
+		return;
+	}
+
+	ABaseTool* Tool = *ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
+	if (!Tool || !Tool->Item) return;
+
+	if (Tool->Item->ToolCategory == EToolCategory::Pestle)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (!PC) return;
+		AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
+		if (!MyPC || !MyPC->MinigameManager) return;
+
+		MyPC->MinigameManager->OnMinigameFinished.AddDynamic(this, &APlantPart::OnPestleFinished);
+		MyPC->MinigameManager->StartMinigame(PestleMortarMinigameWidgetClass);
+	}
+}
+
+void APlantPart::OnPestleFinished(bool bSuccess)
+{
+	if (AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		MyPC->MinigameManager->OnMinigameFinished.RemoveDynamic(this, &APlantPart::OnPestleFinished);
+	}
+
+	if (bSuccess)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PlantPart] Pestle succeeded"));
+		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			if (APawn* P = PC->GetPawn())
+			{
+				if (UInventoryComponent* Inv = P->FindComponentByClass<UInventoryComponent>())
+				{
+					Inv->AddItem(Item, 1, Instance);
+				}
+			}
+		}
+		ParentWorkbench->RemoveHerbItem(this);
+		Destroy();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PlantPart] Pestle failed"));
+	}
 }
 
 void APlantPart::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 FText APlantPart::GetInteractPrompt_Implementation() const
@@ -48,14 +133,13 @@ bool APlantPart::CanInteract_Implementation(APawn* By) const
 void APlantPart::Interact_Implementation(APawn* By)
 {
 	AAlchemySimulatorCharacter* player = Cast<AAlchemySimulatorCharacter>(By);
-	//UE_LOG(LogTemp, Error, TEXT("Inventory owner: %s"), *player->inventory->GetOwner()->GetName());
 	if (player && player->inventory != nullptr)
 	{
 		if (player->inventory->AddItem(Item, 1, Instance)) {
 			Destroy();
 		}
 	}
-	UE_LOG(LogTemp, Error, TEXT("Interact with plant"));
+	UE_LOG(LogTemp, Error, TEXT("Interact with plant part"));
 }
 
 void APlantPart::OnFocStart_Implementation(APawn* By)
@@ -67,4 +151,3 @@ void APlantPart::OnFocEnd_Implementation(APawn* By)
 {
 	UE_LOG(LogTemp, Error, TEXT("Focus endorino"));
 }
-

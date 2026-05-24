@@ -132,37 +132,7 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 
 				return;
 			}
-
-			if (tool->Item->ToolCategory == EToolCategory::Pestle) {
-
-				UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Starting pestle mortar minigame"));
-				APlayerController* PC = GetWorld()->GetFirstPlayerController();
-				if (!PC) return;
-
-				AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
-				if (!MyPC) return;
-
-
-
-				if (!MyPC->MinigameManager) return;
-
-				InteractedPart = Cast<UStaticMeshComponent>(Component);
-				if (!InteractedPart) return;
-
-				if (InteractedPart == Stem){
-					
-					UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cannot cut stem while leafs are still visible"));
-					return;
-				}
-
-				MyPC->MinigameManager->OnMinigameFinished.AddDynamic(this, &ABasePlant::OnCuttingFinished);
-				MyPC->MinigameManager->StartMinigame(PestleMortarMinigameWidgetClass);
-
-				return;
-			}
 		}
-
-
 		
 
 	}
@@ -249,6 +219,7 @@ void ABasePlant::OnCuttingFinished(bool bSuccess)
 		if (visibleParts == 1)
 		{
 			GetWorld()->GetFirstPlayerController()->GetPawn()->FindComponentByClass<UInventoryComponent>()->AddItem(StemItem, 1,newInstance);
+			ParentWorkbench->RemoveHerbItem(this);
 			UE_LOG(LogTemp, Warning, TEXT("[BasePlant] All parts cut, destroying plant"));
 			Destroy();
 		}

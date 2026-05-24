@@ -21,6 +21,7 @@
 #include "BasicWorkbench.h"
 #include "CustomCursorWidget.h"
 #include "BaseTool.h"
+#include "PlantPart.h"
 #include "ItemDefinitionBase.h"
 #include "MinigameManagerComponent.h"
 #include "BaseGameWidget.h"
@@ -176,11 +177,17 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 	CurrentStation = station;
 	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(CurrentStation))
 	{
-		for (ABasePlant* plant : bench->HerbsOnTable) {
-			if (plant)
+		if (bench->HerbsOnTable.Num() > 0)
+		for (AActor* plant : bench->HerbsOnTable) {
+
+			if (ABasePlant* basePlant = Cast<ABasePlant>(plant))
 			{
-				plant->Stem->SetSimulatePhysics(true);
+				basePlant->Stem->SetSimulatePhysics(true);
 			}
+			 if (APlantPart* plantPart = Cast<APlantPart>(plant))
+			 {
+				 plantPart->Body->SetSimulatePhysics(true);
+			 }
 		}
 	}
 	ACharacter* C = Cast<ACharacter>(GetPawn());
@@ -204,10 +211,14 @@ void AAlchemySimulatorPlayerController::RemoveStationController()
 
 	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(CurrentStation))
 	{
-		for (ABasePlant* plant : bench->HerbsOnTable) {
-			if (plant)
+		for (AActor* plant : bench->HerbsOnTable) {
+			if (ABasePlant* basePlant = Cast<ABasePlant>(plant))
 			{
-				plant->Stem->SetSimulatePhysics(false);
+				basePlant->Stem->SetSimulatePhysics(false);
+			}
+			if (APlantPart* plantPart = Cast<APlantPart>(plant))
+			{
+				plantPart->Body->SetSimulatePhysics(false);
 			}
 		}
 	}
