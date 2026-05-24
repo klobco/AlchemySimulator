@@ -20,3 +20,24 @@ struct ALCHEMYSIMULATOR_API FMinigameResult
     UPROPERTY(BlueprintReadOnly)
     float QualityMultiplier = 1.f;
 };
+
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FPestleMortarResult
+{
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly)
+    bool bSuccess = false;
+
+    UPROPERTY(BlueprintReadOnly)
+    float Groundness = 0.f;
+
+    UPROPERTY(BlueprintReadOnly)
+    float QualityMultiplier = 0.f;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 PerfectHits = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 Misses = 0;
+};

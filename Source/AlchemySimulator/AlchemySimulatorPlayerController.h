@@ -100,6 +100,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Tools")
 	void SetActiveTool(class ABaseTool* tool);
 
+	UFUNCTION()
+	void RestoreCustomCursor();
+
 	UPROPERTY(EditAnywhere, Category = "Cursor")
 	TSubclassOf<class UCustomCursorWidget> CursorWidgetClass;
 

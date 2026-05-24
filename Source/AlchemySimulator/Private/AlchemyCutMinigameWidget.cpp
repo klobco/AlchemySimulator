@@ -32,6 +32,15 @@ void UAlchemyCutMinigameWidget::NativeDestruct()
     }
 }
 
+void UAlchemyCutMinigameWidget::NativeOnFocusLost(const FFocusEvent& InFocusEvent)
+{
+    Super::NativeOnFocusLost(InFocusEvent);
+    if (bIsRunning && !bFinished)
+    {
+        SetFocus();
+    }
+}
+
 FReply UAlchemyCutMinigameWidget::NativeOnKeyDown(
     const FGeometry& InGeometry,
     const FKeyEvent& InKeyEvent)

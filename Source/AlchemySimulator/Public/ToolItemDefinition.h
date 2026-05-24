@@ -8,6 +8,14 @@
 
 class UTexture2D;
 
+UENUM(BlueprintType)
+enum class EToolCategory : uint8
+{
+    None,
+    Knife,
+    Pestle
+};
+
 /**
  *
  */
@@ -20,4 +28,7 @@ public:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Workbench")
     TObjectPtr<UTexture2D> WorkbenchCursor = nullptr;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Category")
+    EToolCategory ToolCategory = EToolCategory::None;
 };

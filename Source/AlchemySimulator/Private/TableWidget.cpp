@@ -86,7 +86,7 @@ void UTableWidget::Rebuild() {
         for (FInventorySlot InvSlot : Inventory->GetSlots()) {
             if (InvSlot.IsEmpty()) continue;
 
-            if (InvSlot.Item->Category == EItemCategory::Tool || InvSlot.Item->Category == EItemCategory::Knife)
+            if (InvSlot.Item->Category == EItemCategory::Tool)
             {
                 UActionTabItemWidget* Entry = CreateWidget<UActionTabItemWidget>(GetOwningPlayer(), EntryItemWidgetClass);
                 if (!Entry) continue;

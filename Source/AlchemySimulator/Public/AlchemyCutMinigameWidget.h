@@ -23,6 +23,7 @@ public:
     virtual void NativeConstruct() override;
     virtual void NativeDestruct() override;
     virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+    virtual void NativeOnFocusLost(const FFocusEvent& InFocusEvent) override;
 
 protected:
     UPROPERTY(meta = (BindWidget))

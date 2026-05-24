@@ -62,6 +62,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
 	TSubclassOf<class UAlchemyCutMinigameWidget> CuttingMinigameWidgetClass;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
+	TSubclassOf<class UPestleMortarMinigame> PestleMortarMinigameWidgetClass;
+
 	UPROPERTY()
 	class ABasicWorkbench* ParentWorkbench;
 

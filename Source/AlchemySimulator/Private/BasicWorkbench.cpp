@@ -50,7 +50,7 @@ void ABasicWorkbench::AddTool(ABaseTool* tool) {
 		return;
 	}
 
-	if (tool->Item->Category == EItemCategory::Knife)
+	if (tool->Item->ToolCategory == EToolCategory::Knife)
 	{
 		FName SocketName = FName(*FString::Printf(TEXT("Knife%d"), SlotIndex));
 		UE_LOG(LogTemp, Error, TEXT("Socket name is %s"), *SocketName.ToString());
@@ -63,7 +63,7 @@ void ABasicWorkbench::AddTool(ABaseTool* tool) {
 
 		tool->SetActorRelativeRotation(FRotator(90.f, 0.f, 0.f));
 	}
-	else if (tool->Item->Category == EItemCategory::Tool) {
+	else if (tool->Item->ToolCategory == EToolCategory::Pestle) {
 		FName SocketName = FName(*FString::Printf(TEXT("Tool%d"), SlotIndex));
 		UE_LOG(LogTemp, Error, TEXT("Socket name is %s"), *SocketName.ToString());
 

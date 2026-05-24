@@ -18,7 +18,6 @@ enum class EItemCategory : uint8
     Herb,
     Ingredient,
     Tool,
-    Knife,
     Potion
 };
 

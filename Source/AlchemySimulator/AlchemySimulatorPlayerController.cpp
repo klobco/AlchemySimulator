@@ -27,6 +27,7 @@
 #include "WidgetStackManager.h"
 #include "DrawDebugHelpers.h"
 #include "Components/PrimitiveComponent.h"
+#include "Framework/Application/SlateApplication.h"
 
 AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
 {
@@ -273,6 +274,15 @@ void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)
 		CursorWidgetInstance->SetCursorTexture(tool->Item->WorkbenchCursor);
 		SetMouseCursorWidget(EMouseCursor::Custom, CursorWidgetInstance);
 		CurrentMouseCursor = EMouseCursor::Custom;
+	}
+}
+
+void AAlchemySimulatorPlayerController::RestoreCustomCursor()
+{
+	if (CursorWidgetInstance)
+	{
+		SetMouseCursorWidget(EMouseCursor::Custom, CursorWidgetInstance.Get());
+		FSlateApplication::Get().QueryCursor();
 	}
 }
 

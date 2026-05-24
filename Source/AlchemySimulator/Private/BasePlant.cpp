@@ -13,6 +13,7 @@
 #include "Components/BoxComponent.h"
 #include "MinigameManagerComponent.h"
 #include "AlchemyCutMinigameWidget.h"
+#include "PestleMortarMinigame.h"
 #include "PlantItemDefinition.h"
 
 // Sets default values
@@ -105,7 +106,7 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 		{
 			ABaseTool* tool = *ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
 
-			if (tool->Item->Category == EItemCategory::Knife)
+			if (tool->Item->ToolCategory == EToolCategory::Knife)
 			{
 				APlayerController* PC = GetWorld()->GetFirstPlayerController();
 				if (!PC) return;
@@ -128,6 +129,34 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 
 				MyPC->MinigameManager->OnMinigameFinished.AddDynamic(this, &ABasePlant::OnCuttingFinished);
 				MyPC->MinigameManager->StartMinigame(CuttingMinigameWidgetClass);
+
+				return;
+			}
+
+			if (tool->Item->ToolCategory == EToolCategory::Pestle) {
+
+				UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Starting pestle mortar minigame"));
+				APlayerController* PC = GetWorld()->GetFirstPlayerController();
+				if (!PC) return;
+
+				AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
+				if (!MyPC) return;
+
+
+
+				if (!MyPC->MinigameManager) return;
+
+				InteractedPart = Cast<UStaticMeshComponent>(Component);
+				if (!InteractedPart) return;
+
+				if (InteractedPart == Stem){
+					
+					UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cannot cut stem while leafs are still visible"));
+					return;
+				}
+
+				MyPC->MinigameManager->OnMinigameFinished.AddDynamic(this, &ABasePlant::OnCuttingFinished);
+				MyPC->MinigameManager->StartMinigame(PestleMortarMinigameWidgetClass);
 
 				return;
 			}

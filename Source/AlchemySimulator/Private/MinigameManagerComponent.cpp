@@ -5,6 +5,8 @@
 #include "AlchemyMinigameWidget.h"
 #include "AlchemySimulatorPlayerController.h"
 #include "WidgetStackManager.h"
+#include "CustomCursorWidget.h"
+#include "Framework/Application/SlateApplication.h"
 
 UMinigameManagerComponent::UMinigameManagerComponent()
 {
@@ -30,10 +32,6 @@ void UMinigameManagerComponent::StartMinigame(TSubclassOf<UAlchemyMinigameWidget
     {
         StopMinigame();
     }
-
-
-
-
 
     ActiveMinigameWidget = CreateWidget<UAlchemyMinigameWidget>(PC, MinigameWidgetClass);
 
@@ -67,11 +65,19 @@ void UMinigameManagerComponent::StopMinigame()
 		{
 			if (bWasInStation)
 			{
+				FSlateApplication::Get().SetAllUserFocusToGameViewport();
+				
 				FInputModeGameAndUI StationInputMode;
 				StationInputMode.SetHideCursorDuringCapture(false);
 				StationInputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 				PC->SetInputMode(StationInputMode);
 				PC->bShowMouseCursor = true;
+
+				if (PC->CurrentMouseCursor == EMouseCursor::Custom && PC->CursorWidgetInstance)
+				{
+					GetWorld()->GetTimerManager().SetTimerForNextTick(PC, &AAlchemySimulatorPlayerController::RestoreCustomCursor);
+				}
+
 			}
 			else
 			{
