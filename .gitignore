@@ -364,3 +364,10 @@ FodyWeavers.xsd
 
 # Explicitly track project documentation
 !CLAUDE.md
+
+# Content folder exclusions
+Content/Characters/
+Content/Fab/
+Content/Variant_Combat/
+Content/Variant_Platforming/
+Content/Variant_SideScrolling/
