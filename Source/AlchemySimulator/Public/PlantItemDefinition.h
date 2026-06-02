@@ -4,19 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "ItemDefinitionBase.h"
+#include "DataStructHelpers.h"
 #include "PlantItemDefinition.generated.h"
-
-UENUM(BlueprintType)
-enum class EIngredientPart : uint8
-{
-    None,
-    Whole,
-    Leaf,
-    Stem,
-    Root,
-    Fruit,
-    Flower
-};
 
 /**
  *
@@ -28,6 +17,13 @@ class ALCHEMYSIMULATOR_API UPlantItemDefinition : public UItemDefinitionBase
 
 public:
 
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Category")
-    EIngredientPart Part = EIngredientPart::None;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    FGameplayTagContainer Biomes;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    TArray<FPlantPartHarvestData> HarvestableParts;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    float Rarity = 1.0f;
+
 };

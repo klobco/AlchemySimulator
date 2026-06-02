@@ -58,10 +58,6 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Category")
     EItemCategory Category = EItemCategory::None;
 
-    // Gameplay tags for filtering, crafting rules, effects, tools, etc.
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Tags")
-    FGameplayTagContainer Tags;
-
     // --- Stacking ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Stacking")
     bool bStackable = true;

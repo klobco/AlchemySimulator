@@ -6,7 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "IInteractable.h"
 #include "ItemMetadata.h"
-#include "PlantItemDefinition.h"
+#include "DataAssetPlantPart.h"
 #include "PlantPart.generated.h"
 
 UCLASS()
@@ -25,7 +25,7 @@ public:
 	FItemInstanceData Instance;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const UPlantItemDefinition> Item;
+	TObjectPtr<const UDataAssetPlantPart> Item;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
 	TSubclassOf<class UPestleMortarMinigame> PestleMortarMinigameWidgetClass;

@@ -7,6 +7,7 @@
 #include "IInteractable.h"
 #include "ItemMetadata.h"
 #include "PlantItemDefinition.h"
+#include "DataAssetPlantPart.h"
 #include "BasePlant.generated.h"
 
 UCLASS()
@@ -34,16 +35,22 @@ public:
 	int32 LeafCount = 2;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	float CurrentQuality = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	float CurrentFreshness = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	TObjectPtr<const UPlantItemDefinition> Item;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const UPlantItemDefinition> StemItem;
+	TObjectPtr<const UDataAssetPlantPart> StemItem;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const UPlantItemDefinition> LeafItem;
+	TObjectPtr<const UDataAssetPlantPart> LeafItem;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const UPlantItemDefinition> FruitItem;
+	TObjectPtr<const UDataAssetPlantPart> FruitItem;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Item")
 	UStaticMeshComponent* InteractedPart;

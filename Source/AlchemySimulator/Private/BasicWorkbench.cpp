@@ -10,6 +10,7 @@
 #include "Components/BoxComponent.h"
 #include "DrawDebugHelpers.h"
 #include "PlantPart.h"
+#include "DataAssetPlantPart.h"
 #include "BasicWorkbench.h"
 
 ABasicWorkbench::ABasicWorkbench() {
@@ -236,7 +237,7 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 
 			HerbsOnTable.Add(SpawnedPlantPart);
 
-			SpawnedPlantPart->Item = Cast<UPlantItemDefinition>(CurrentSlot.Item.Get());
+			SpawnedPlantPart->Item = Cast<UDataAssetPlantPart>(CurrentSlot.Item.Get());
 			SpawnedPlantPart->Instance = CurrentSlot.Instance;
 
 			SpawnedPlantPart->ParentWorkbench = this;
