@@ -10,7 +10,7 @@
 class UDataAssetAlchemyEfectDefinition;
 class UDataAssetSubstanceDefinition;
 class UPlantItemDefinition;
-class UProcessingMethodDefinition;
+class UDataAssetProcessingMethod;
 class UDataAssetPlantPart;
 
 USTRUCT(BlueprintType)
@@ -79,7 +79,7 @@ struct ALCHEMYSIMULATOR_API FIngredientInstance
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
-    TObjectPtr<UPlantItemDefinition> PlantPart = nullptr;
+    TObjectPtr<UDataAssetPlantPart> PlantPart = nullptr;
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     float Quality = 1.0f;
@@ -107,4 +107,22 @@ struct ALCHEMYSIMULATOR_API FPlantPartHarvestData
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     float HarvestChance = 1.0f;
+};
+
+USTRUCT(BlueprintType)
+struct FProcessedIngredient
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FIngredientInstance BaseIngredient;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    TArray<TObjectPtr<UDataAssetProcessingMethod>> AppliedProcesses;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float ProcessingQuality = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    TArray<FSubstanceAmount> FinalSubstances;
 };
