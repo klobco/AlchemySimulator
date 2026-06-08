@@ -3,7 +3,8 @@
 
 #include "AlchemyMinigameWidget.h"
 
-void UAlchemyMinigameWidget::FinishMinigame(bool bSuccess)
+void UAlchemyMinigameWidget::FinishMinigame(FMinigameResult Result)
 {
-    OnMinigameFinished.Broadcast(bSuccess);
+    OnMinigameFinished.Broadcast(Result.bSuccess);
+    OnMinigameResultFinished.Broadcast(Result);
 }

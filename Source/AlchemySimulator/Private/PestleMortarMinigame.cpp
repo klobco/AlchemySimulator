@@ -200,11 +200,8 @@ void UPestleMortarMinigame::EndMinigame(bool bSuccess)
         World->GetTimerManager().ClearTimer(SpawnTimerHandle);
     }
 
-    FPestleMortarResult Result;
+    FMinigameResult Result;
     Result.bSuccess = bSuccess;
-    Result.Groundness = CurrentGroundness;
-    Result.PerfectHits = PerfectHits;
-    Result.Misses = Misses;
     Result.QualityMultiplier = FMath::Clamp(
         float(PerfectHits) / float(FMath::Max(1, PerfectHits + Misses)),
         0.f, 1.f
@@ -212,11 +209,11 @@ void UPestleMortarMinigame::EndMinigame(bool bSuccess)
 
     UE_LOG(LogTemp, Warning, TEXT("Pestle mortar ended. Success: %s, Groundness: %.1f, Perfects: %d, Misses: %d, QM: %.2f"),
         bSuccess ? TEXT("true") : TEXT("false"),
-        Result.Groundness, Result.PerfectHits, Result.Misses, Result.QualityMultiplier
+        CurrentGroundness, PerfectHits, Misses, Result.QualityMultiplier
     );
 
     OnPestleMortarFinished.Broadcast(Result);
-    FinishMinigame(bSuccess);
+    FinishMinigame(Result);
 
     RemoveFromParent();
 }

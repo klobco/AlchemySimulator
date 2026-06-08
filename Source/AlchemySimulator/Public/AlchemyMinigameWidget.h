@@ -4,9 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "DataStructHelpers.h"
 #include "AlchemyMinigameWidget.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMinigameFinished, bool, bSuccess);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMinigameResultFinished, FMinigameResult, Result);
 /**
  * 
  */
@@ -20,6 +23,9 @@ public:
     UPROPERTY(BlueprintAssignable)
     FOnMinigameFinished OnMinigameFinished;
 
+    UPROPERTY(BlueprintAssignable)
+    FOnMinigameResultFinished OnMinigameResultFinished;
+
     UFUNCTION(BlueprintCallable)
-    void FinishMinigame(bool bSuccess);
+    void FinishMinigame(FMinigameResult Result);
 };

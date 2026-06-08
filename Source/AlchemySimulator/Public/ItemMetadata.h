@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectPtr.h"
+#include "GameplayTagContainer.h"
 #include "ItemMetadata.generated.h"
 
 class UItemDefinitionBase;
@@ -22,10 +23,26 @@ struct ALCHEMYSIMULATOR_API FItemInstanceData
     GENERATED_BODY()
 
 public:
-    // Zatia� nechaj pr�zdne alebo sem nesk�r pridaj:
-    // Quality, Freshness, Durability, CraftedBy, etc.
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 Quality = 100;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float Freshness = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGameplayTagContainer ProcessingTags;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float ProcessingQuality = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsProcessed = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bIsPotion = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FGameplayTagContainer RuntimeTags;
 };
 
 USTRUCT(BlueprintType)

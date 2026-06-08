@@ -12,6 +12,7 @@ class UDataAssetSubstanceDefinition;
 class UPlantItemDefinition;
 class UDataAssetProcessingMethod;
 class UDataAssetPlantPart;
+class UDataAssetDisease;
 
 USTRUCT(BlueprintType)
 struct ALCHEMYSIMULATOR_API FMinigameResult
@@ -26,27 +27,6 @@ struct ALCHEMYSIMULATOR_API FMinigameResult
 
     UPROPERTY(BlueprintReadOnly)
     float QualityMultiplier = 1.f;
-};
-
-USTRUCT(BlueprintType)
-struct ALCHEMYSIMULATOR_API FPestleMortarResult
-{
-    GENERATED_BODY()
-
-    UPROPERTY(BlueprintReadOnly)
-    bool bSuccess = false;
-
-    UPROPERTY(BlueprintReadOnly)
-    float Groundness = 0.f;
-
-    UPROPERTY(BlueprintReadOnly)
-    float QualityMultiplier = 0.f;
-
-    UPROPERTY(BlueprintReadOnly)
-    int32 PerfectHits = 0;
-
-    UPROPERTY(BlueprintReadOnly)
-    int32 Misses = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -110,7 +90,7 @@ struct ALCHEMYSIMULATOR_API FPlantPartHarvestData
 };
 
 USTRUCT(BlueprintType)
-struct FProcessedIngredient
+struct ALCHEMYSIMULATOR_API FProcessedIngredient
 {
     GENERATED_BODY()
 
@@ -125,4 +105,100 @@ struct FProcessedIngredient
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     TArray<FSubstanceAmount> FinalSubstances;
+};
+
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FPotionResult
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    TArray<FAlchemyEffectValue> FinalEffects;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float Toxicity = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float Purity = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float Stability = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FLinearColor PotionColor = FLinearColor::White;
+};
+
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FTreatmentRequirement
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    TObjectPtr<UDataAssetAlchemyEfectDefinition> RequiredEffect = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float RequiredValue = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    bool bIsMandatory = true;
+};
+
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FPatientBodyState
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float Immunity = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float Vitality = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float ToxicResistance = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float RecoveryRate = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    TMap<FGameplayTag, float> Nutrients;
+};
+
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FPatientCondition
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    TObjectPtr<UDataAssetDisease> Disease = nullptr;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FPatientBodyState BodyState;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float Severity = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float Progress = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FGameplayTagContainer VisibleSymptoms;
+};
+
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FTreatmentResult
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    bool bCured = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    bool bWorsened = false;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    float ProgressChange = 0.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    FGameplayTagContainer NewSymptoms;
 };

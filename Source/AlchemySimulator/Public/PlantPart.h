@@ -36,6 +36,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Item")
 	EHerbStatus HerbStatus;
 
+	UPROPERTY(EditDefaultsOnly, Category="Alchemy|Processing")
+	TObjectPtr<UDataAssetProcessingMethod> PestleProcessingMethod;
+
 	UPROPERTY()
 	class ABasicWorkbench* ParentWorkbench = nullptr;
 

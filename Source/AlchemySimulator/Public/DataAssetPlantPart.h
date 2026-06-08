@@ -25,4 +25,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	float BaseQuality = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Alchemy")
+	bool bCanBeProcessed = true;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Alchemy")
+	FGameplayTagContainer AllowedProcessingTags;
 };

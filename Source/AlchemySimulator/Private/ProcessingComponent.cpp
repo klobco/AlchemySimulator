@@ -4,51 +4,28 @@
 #include "DataAssetPlantPart.h"
 #include "PlantItemDefinition.h"
 #include "DataAssetPlantPart.h"
+#include "DataAssetProcessingMethod.h"
 #include "ProcessingComponent.h"
 
-FProcessedIngredient UProcessingComponent::ProcessIngredient(
-    const FIngredientInstance& Ingredient,
+FItemInstanceData UProcessingComponent::BuildProcessedInstance(
+    const FItemInstanceData& OriginalInstance,
     UDataAssetProcessingMethod* ProcessingMethod,
     float MiniGameQuality
-)
+) const
 {
-    FProcessedIngredient Result;
-    Result.BaseIngredient = Ingredient;
-    Result.ProcessingQuality = FMath::Clamp(MiniGameQuality, 0.0f, 1.5f);
+    FItemInstanceData Result = OriginalInstance;
 
-    if (ProcessingMethod)
-    {
-        Result.AppliedProcesses.Add(ProcessingMethod);
-    }
-
-    if (!Ingredient.PlantPart)
+    if (!ProcessingMethod)
     {
         return Result;
     }
 
-    for (const FSubstanceAmount& SubstanceAmount : Ingredient.PlantPart->HarvestableParts->PlantPartDefinition->Substances)
-    {
-        if (!SubstanceAmount.Substance)
-        {
-            continue;
-        }
+    const float ClampedQuality = FMath::Clamp(MiniGameQuality, 0.0f, 1.5f);
 
-        FSubstanceAmount FinalAmount;
-        FinalAmount.Substance = SubstanceAmount.Substance;
-
-        float Amount = SubstanceAmount.Amount;
-        Amount *= Ingredient.Quality;
-        Amount *= Ingredient.Freshness;
-        Amount *= Result.ProcessingQuality;
-
-        if (ProcessingMethod)
-        {
-            Amount *= ProcessingMethod->GeneralPotencyMultiplier;
-        }
-
-        FinalAmount.Amount = Amount;
-        Result.FinalSubstances.Add(FinalAmount);
-    }
+    Result.bIsProcessed = true;
+    Result.ProcessingTags.AddTag(ProcessingMethod->ProcessingTag);
+    Result.ProcessingQuality *= ClampedQuality;
+    Result.ProcessingQuality *= ProcessingMethod->GeneralPotencyMultiplier;
 
     return Result;
 }

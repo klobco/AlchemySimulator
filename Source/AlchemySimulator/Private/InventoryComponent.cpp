@@ -30,6 +30,7 @@ void UInventoryComponent::BeginPlay()
 	UE_LOG(LogTemp, Error, TEXT("Slots: %i"),Slots.Num());
 }
 
+
 bool UInventoryComponent::AddItem(const UItemDefinitionBase* Item, int32 Quantity, const FItemInstanceData& Instance) {
 
 	if (!CategoryWhitelist.IsEmpty() && !CategoryWhitelist.Contains(Item->Category)) return false;
@@ -206,11 +207,15 @@ int32 UInventoryComponent::CountItem(const UItemDefinitionBase* Item, const FIte
 
 bool UInventoryComponent::CanStackTogether(const FInventorySlot& A, const FInventorySlot& B) const {
 
-	if (A.Item->bStackable && B.Item->bStackable && A.Item == B.Item && A.Instance.Quality == B.Instance.Quality)
-	{
-		return true;
-	}
-	return false;
+    if (!A.Item || !B.Item) return false;
+    if (!A.Item->bStackable || !B.Item->bStackable) return false;
+    if (A.Item != B.Item) return false;
+
+    return A.Instance.Quality == B.Instance.Quality
+        && FMath::IsNearlyEqual(A.Instance.Freshness, B.Instance.Freshness)
+        && A.Instance.ProcessingTags == B.Instance.ProcessingTags
+        && FMath::IsNearlyEqual(A.Instance.ProcessingQuality, B.Instance.ProcessingQuality)
+        && A.Instance.bIsPotion == B.Instance.bIsPotion;
 }
 
 bool UInventoryComponent::IsFull() const {
@@ -241,15 +246,18 @@ int32 UInventoryComponent::FindFirstEmptySlotIndex() const {
 
 int32 UInventoryComponent::FindFirstStackableSlotIndex(const UItemDefinitionBase* Item, const FItemInstanceData& Instance) const {
 
-	//TODO add instance processing
-	if (Item == nullptr || Item->bStackable == false)
+	if (Item == nullptr)
 	{
 		return -1;
 	}
 
-	for (int32 Index = 0; Index != Slots.Num(); ++Index)
+	FInventorySlot TempSlot;
+	TempSlot.Item = Item;
+	TempSlot.Instance = Instance;
+
+	for (int32 Index = 0; Index < Slots.Num(); ++Index)
 	{
-		if (Slots.IsValidIndex(Index) && Slots[Index].Item == Item && Slots[Index].Quantity < Item->MaxStackSize)
+		if (CanStackTogether(Slots[Index], TempSlot))
 		{
 			return Index;
 		}
@@ -260,30 +268,29 @@ int32 UInventoryComponent::FindFirstStackableSlotIndex(const UItemDefinitionBase
 
 int32 UInventoryComponent::FreeStorageForItem(const UItemDefinitionBase* Item, const FItemInstanceData& Instance) const {
 
-	int32 freeSpace = 0;
-
 	if (Item == nullptr)
 	{
 		return 0;
 	}
 
-	for (auto& Slot : Slots)
+	FInventorySlot TempSlot;
+	TempSlot.Item = Item;
+	TempSlot.Instance = Instance;
+
+	int32 freeSpace = 0;
+
+	for (const auto& Slot : Slots)
 	{
 		if (Slot.IsEmpty())
 		{
 			freeSpace += Item->MaxStackSize;
-
 			continue;
 		}
-		if (Slot.Item == Item && Slot.Instance.Quality == Instance.Quality)
+		if (CanStackTogether(Slot, TempSlot))
 		{
 			freeSpace += Slot.Item->MaxStackSize - Slot.Quantity;
 		}
-
 	}
-
-	AActor* Owner = GetOwner();
-	//UE_LOG(LogTemp, Error, TEXT("Free space for item: %i, Owner: %s"), freeSpace, Owner ? *Owner->GetName() : TEXT("NULL"));
 
 	return freeSpace;
 }

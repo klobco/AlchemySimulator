@@ -154,6 +154,8 @@ void UAlchemyCutMinigameWidget::FinishCut()
         World->GetTimerManager().ClearTimer(MoveTimerHandle);
     }
 
+    FMinigameResult Result;
+
     const bool bSuccess = IsCurrentIndexSuccess();
 
     if (bSuccess)
@@ -165,7 +167,8 @@ void UAlchemyCutMinigameWidget::FinishCut()
         UE_LOG(LogTemp, Warning, TEXT("Cutting minigame FAIL. Index: %d"), CurrentIndex);
     }
 
-    FinishMinigame(bSuccess);
+    Result.bSuccess = bSuccess;
+    FinishMinigame(Result);
 }
 
 bool UAlchemyCutMinigameWidget::IsCurrentIndexSuccess() const

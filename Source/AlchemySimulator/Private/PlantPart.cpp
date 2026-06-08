@@ -7,6 +7,7 @@
 #include "InventoryComponent.h"
 #include "BasicWorkbench.h"
 #include "BaseTool.h"
+#include "DataAssetProcessingMethod.h"
 #include "ToolItemDefinition.h"
 #include "PestleMortarMinigame.h"
 #include "MinigameManagerComponent.h"
@@ -83,31 +84,38 @@ void APlantPart::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 
 void APlantPart::OnPestleFinished(bool bSuccess)
 {
-	if (AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
-	{
-		MyPC->MinigameManager->OnMinigameFinished.RemoveDynamic(this, &APlantPart::OnPestleFinished);
-	}
+    if (AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
+    {
+        MyPC->MinigameManager->OnMinigameFinished.RemoveDynamic(this, &APlantPart::OnPestleFinished);
+    }
 
-	if (bSuccess)
+    if (!bSuccess)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PlantPart] Pestle failed"));
+        return;
+    }
+    FItemInstanceData NewInstance = Instance;
+    NewInstance.bIsProcessed = true;
+    if (PestleProcessingMethod)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[PlantPart] Pestle succeeded"));
-		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
-		{
-			if (APawn* P = PC->GetPawn())
-			{
-				if (UInventoryComponent* Inv = P->FindComponentByClass<UInventoryComponent>())
-				{
-					Inv->AddItem(Item, 1, Instance);
-				}
-			}
-		}
-		ParentWorkbench->RemoveHerbItem(this);
-		Destroy();
+		NewInstance.ProcessingTags.AddTag(PestleProcessingMethod->ProcessingTag);
+		NewInstance.ProcessingQuality *= PestleProcessingMethod->GeneralPotencyMultiplier;
 	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[PlantPart] Pestle failed"));
-	}
+    NewInstance.ProcessingQuality *= 1.15f;
+
+    if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+    {
+        if (APawn* P = PC->GetPawn())
+        {
+            if (UInventoryComponent* Inv = P->FindComponentByClass<UInventoryComponent>())
+            {
+                Inv->AddItem(Item, 1, NewInstance);
+            }
+        }
+    }
+
+    ParentWorkbench->RemoveHerbItem(this);
+    Destroy();
 }
 
 void APlantPart::Tick(float DeltaTime)

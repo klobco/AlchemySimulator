@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "DataStructHelpers.h"
+#include "ItemMetadata.h"
 #include "ProcessingComponent.generated.h"
 
 class UDataAssetProcessingMethod;
@@ -14,12 +15,11 @@ class ALCHEMYSIMULATOR_API UProcessingComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:
-    UFUNCTION(BlueprintCallable)
-    FProcessedIngredient ProcessIngredient(
-        const FIngredientInstance& Ingredient,
-        UDataAssetProcessingMethod* ProcessingMethod,
-        float MiniGameQuality
-    );
+UFUNCTION(BlueprintCallable)
+FItemInstanceData BuildProcessedInstance(
+    const FItemInstanceData& OriginalInstance,
+    UDataAssetProcessingMethod* ProcessingMethod,
+    float MiniGameQuality
+) const;
 		
 };

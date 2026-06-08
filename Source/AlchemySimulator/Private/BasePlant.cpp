@@ -173,8 +173,21 @@ void ABasePlant::OnCuttingFinished(bool bSuccess)
 		
 		UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cutting succeeded"));
 
-		FItemInstanceData newInstance = Instance;
-		newInstance.Quality = FMath::Clamp(newInstance.Quality - 20, 0, 100);
+		FItemInstanceData NewInstance = Instance;
+
+		if (bSuccess)
+		{
+			NewInstance.Quality = FMath::Clamp(NewInstance.Quality - 5, 0, 100);
+		}
+		else
+		{
+			NewInstance.Quality = FMath::Clamp(NewInstance.Quality - 25, 0, 100);
+		}
+
+		NewInstance.Freshness = 1.0f;
+		NewInstance.bIsProcessed = false;
+		NewInstance.ProcessingQuality = 1.0f;
+		NewInstance.ProcessingTags.Reset();
 
         if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
         {
@@ -187,16 +200,16 @@ void ABasePlant::OnCuttingFinished(bool bSuccess)
 					
 					if (PartName.Contains(TEXT("Stem")))
 					{
-						Inv->AddItem(StemItem, 1,newInstance);
+						Inv->AddItem(StemItem, 1,NewInstance);
 					}
 					else if (PartName.Contains(TEXT("Leaf")))
 					{
-						Inv->AddItem(LeafItem, 1,newInstance);
+						Inv->AddItem(LeafItem, 1,NewInstance);
 					}
 					else if (PartName.Contains(TEXT("Fruit")))
 					{
 						UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory"));
-						bool was = Inv->AddItem(FruitItem, 1,newInstance);
+						bool was = Inv->AddItem(FruitItem, 1,NewInstance);
 						UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory result: %s"), was ? TEXT("true") : TEXT("false"));
 					}
                 }
@@ -218,7 +231,7 @@ void ABasePlant::OnCuttingFinished(bool bSuccess)
 
 		if (visibleParts == 1)
 		{
-			GetWorld()->GetFirstPlayerController()->GetPawn()->FindComponentByClass<UInventoryComponent>()->AddItem(StemItem, 1,newInstance);
+			GetWorld()->GetFirstPlayerController()->GetPawn()->FindComponentByClass<UInventoryComponent>()->AddItem(StemItem, 1,NewInstance);
 			ParentWorkbench->RemoveHerbItem(this);
 			UE_LOG(LogTemp, Warning, TEXT("[BasePlant] All parts cut, destroying plant"));
 			Destroy();

@@ -139,7 +139,11 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 
 	const UItemDefinitionBase* ItemDef = DragOp->SlotSnapshot.Item;
 	if (!ItemDef) return false;
-	if (ItemDef->Category != EItemCategory::Herb) return false;
+	if (ItemDef->Category != EItemCategory::Herb &&
+		ItemDef->Category != EItemCategory::Ingredient)
+	{
+		return false;
+	}
 
 	if (!CanAcceptDraggedItem(ItemDef))
 	{

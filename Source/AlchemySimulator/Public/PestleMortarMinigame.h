@@ -21,7 +21,7 @@ enum class ECrushHitResult : uint8
     Miss
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPestleMortarFinished, FPestleMortarResult, Result);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPestleMortarFinished, FMinigameResult, Result);
 
 /**
  *
