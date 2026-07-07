@@ -259,7 +259,9 @@ int32 UInventoryComponent::FindFirstStackableSlotIndex(const UItemDefinitionBase
 	{
 		if (CanStackTogether(Slots[Index], TempSlot))
 		{
-			return Index;
+			if (Slots[Index].Quantity != Slots[Index].Item->MaxStackSize) {
+				return Index;
+			}
 		}
 	}
 
