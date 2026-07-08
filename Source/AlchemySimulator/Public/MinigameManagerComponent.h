@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "AlchemyMinigameWidget.h"
+#include "Widgets/Minigames/AlchemyMinigameWidget.h"
 #include "MinigameManagerComponent.generated.h"
 
 

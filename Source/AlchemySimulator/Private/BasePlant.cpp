@@ -12,8 +12,8 @@
 #include "ItemMetadata.h"
 #include "Components/BoxComponent.h"
 #include "MinigameManagerComponent.h"
-#include "AlchemyCutMinigameWidget.h"
-#include "PestleMortarMinigame.h"
+#include "Widgets/Minigames/AlchemyCutMinigameWidget.h"
+#include "Widgets/Minigames/PestleMortarMinigame.h"
 #include "PlantItemDefinition.h"
 
 // Sets default values

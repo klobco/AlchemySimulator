@@ -9,7 +9,7 @@
 #include "BaseTool.h"
 #include "DataAssetProcessingMethod.h"
 #include "ToolItemDefinition.h"
-#include "PestleMortarMinigame.h"
+#include "Widgets/Minigames/PestleMortarMinigame.h"
 #include "MinigameManagerComponent.h"
 
 // Sets default values

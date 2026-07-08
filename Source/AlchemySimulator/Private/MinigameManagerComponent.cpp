@@ -2,7 +2,6 @@
 
 
 #include "MinigameManagerComponent.h"
-#include "AlchemyMinigameWidget.h"
 #include "AlchemySimulatorPlayerController.h"
 #include "WidgetStackManager.h"
 #include "CustomCursorWidget.h"

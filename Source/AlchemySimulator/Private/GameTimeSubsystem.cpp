@@ -51,17 +51,35 @@ void UGameTimeSubsystem::Tick(float DeltaTime)
 void UGameTimeSubsystem::RecalculateTime()
 {
     const int32 MinutesInHour = 60;
-    const int32 MinutesInDay = 24 * MinutesInHour;
-    const int32 MinutesInMonth = 30 * MinutesInDay;
+    const int32 HoursInDay = 24;
+    const int32 DaysInMonth = 30;
+    const int32 MonthsInYear = 12;
 
-    CurrentGameTime.Month = (CurrentGameTime.Minute / MinutesInMonth) + 1;
+    if (CurrentGameTime.Minute >= MinutesInHour)
+    {
+        CurrentGameTime.Hour += CurrentGameTime.Minute / MinutesInHour;
+        CurrentGameTime.Minute %= MinutesInHour;
+    }
 
-    CurrentGameTime.Day = (CurrentGameTime.Minute / MinutesInDay) + 1;
+    if (CurrentGameTime.Hour >= HoursInDay)
+    {
+        CurrentGameTime.Day += CurrentGameTime.Hour / HoursInDay;
+        CurrentGameTime.Hour %= HoursInDay;
+    }
 
-    const int32 MinutesToday = (CurrentGameTime.Hour * MinutesInHour) + CurrentGameTime.Minute;
+    if (CurrentGameTime.Day > DaysInMonth)
+    {
+        const int32 ZeroIndexedDay = CurrentGameTime.Day - 1;
+        CurrentGameTime.Month += ZeroIndexedDay / DaysInMonth;
+        CurrentGameTime.Day = (ZeroIndexedDay % DaysInMonth) + 1;
+    }
 
-    CurrentGameTime.Hour = MinutesToday / MinutesInHour;
-    CurrentGameTime.Minute = MinutesToday % MinutesInHour;
+    if (CurrentGameTime.Month > MonthsInYear)
+    {
+        const int32 ZeroIndexedMonth = CurrentGameTime.Month - 1;
+        CurrentGameTime.Year += ZeroIndexedMonth / MonthsInYear;
+        CurrentGameTime.Month = (ZeroIndexedMonth % MonthsInYear) + 1;
+    }
 }
 
 
@@ -81,7 +99,6 @@ void UGameTimeSubsystem::AddMinutes(int32 MinutesToAdd)
     RecalculateTime();
 
     UE_LOG(LogTemp, Log, TEXT("Game Time Updated: %s"), *CurrentGameTime.ToString());
-    //TODO broadcast events for time changes (month, day, hour) if needed
 
     OnGameMinuteChanged.Broadcast(CurrentGameTime);
 

@@ -41,9 +41,9 @@ void ADayNightCycleController::UpdateSunRotation(const FAlchemyGameTime& NewTime
 	const float DayProgress = TimeSubsystem->GetNormalizedDay();
 
 	const float SunPitch = DayProgress * 360.0f + SunPitchOffset;
-	float SunYaw = TimeSubsystem->CurrentGameTime.Hour * 15.0f; // Assuming 15 degrees per hour
 
 	FRotator NewRotation(SunPitch, SunYaw, 0.0f);
+
 	SunLight->SetActorRotation(NewRotation);
 }
 

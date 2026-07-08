@@ -33,7 +33,10 @@ private:
 	class ADirectionalLight* SunLight;
 
 	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
-	float SunPitchOffset;
+	float SunPitchOffset = 93.0f;
+
+	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
+	float SunYaw = 0.0f;
 
 	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
 	class UGameTimeSubsystem* TimeSubsystem;
