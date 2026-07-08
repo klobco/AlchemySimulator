@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AlchemySimulatorCharacter.h"
 #include "Engine/LocalPlayer.h"
@@ -11,7 +11,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "AlchemySimulator.h"
-#include "InventoryComponent.h"
+#include "Components/Inventory/InventoryComponent.h"
 #include <AlchemySimulatorPlayerController.h>
 
 AAlchemySimulatorCharacter::AAlchemySimulatorCharacter()
