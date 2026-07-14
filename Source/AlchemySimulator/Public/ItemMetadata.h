@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectPtr.h"
 #include "GameplayTagContainer.h"
+#include "DataStructHelpers.h"
 #include "ItemMetadata.generated.h"
 
 class UItemDefinitionBase;
@@ -43,6 +44,9 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FGameplayTagContainer RuntimeTags;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FPotionResult PotionResult;
 };
 
 USTRUCT(BlueprintType)
@@ -61,4 +65,46 @@ public:
     FItemInstanceData Instance;
 
     bool IsEmpty() const { return Item == nullptr || Quantity <= 0; }
+
+
+    
+};
+
+
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FItemUseContext
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintReadWrite)
+    TObjectPtr<AActor> User = nullptr;
+
+    UPROPERTY(BlueprintReadWrite)
+    TObjectPtr<class UInventoryComponent> Inventory = nullptr;
+
+    UPROPERTY(BlueprintReadWrite)
+    int32 SlotIndex = INDEX_NONE;
+
+    UPROPERTY(BlueprintReadWrite)
+    FInventorySlot Slot;
+    
+    UPROPERTY(BlueprintReadWrite)
+    TObjectPtr<AActor> TargetActor = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FItemUseResult
+{
+    GENERATED_BODY()
+
+public:
+    UPROPERTY(BlueprintReadOnly)
+    bool bSuccess = false;
+
+    UPROPERTY(BlueprintReadOnly)
+    bool bConsumeOneItem = false;
+
+    UPROPERTY(BlueprintReadOnly)
+    FText Message;
 };

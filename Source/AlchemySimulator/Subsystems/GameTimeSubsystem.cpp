@@ -98,8 +98,6 @@ void UGameTimeSubsystem::AddMinutes(int32 MinutesToAdd)
     CurrentGameTime.Minute += MinutesToAdd;
     RecalculateTime();
 
-    UE_LOG(LogTemp, Log, TEXT("Game Time Updated: %s"), *CurrentGameTime.ToString());
-
     OnGameMinuteChanged.Broadcast(CurrentGameTime);
 
     if (CurrentGameTime.Hour != OldHour)

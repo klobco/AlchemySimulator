@@ -2,6 +2,7 @@
 
 
 #include "Components/Disease/PatientConditionComponent.h"
+#include "Subsystems/DiseaseTreatmentSubsystem.h"
 
 // Sets default values for this component's properties
 UPatientConditionComponent::UPatientConditionComponent()
@@ -39,7 +40,9 @@ FTreatmentResult UPatientConditionComponent::ApplyPotion(const FItemInstanceData
 		UE_LOG(LogTemp, Warning, TEXT("Tried to apply a non-potion item as treatment!"));
 		return FTreatmentResult();
 	}
-	//TODO: Implement actual treatment logic based on the potion's effects and the patient's condition
-	FTreatmentResult Result;
+	
+
+	FTreatmentResult Result = GetWorld()->GetGameInstance()->GetSubsystem<UDiseaseTreatmentSubsystem>()->EvaluateTreatment(PotionInstance.PotionResult, CurrentCondition);
+
 	return Result;
 }

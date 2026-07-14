@@ -27,16 +27,33 @@ public:
 private:
 
 	UFUNCTION()
-	void UpdateSunRotation(const FAlchemyGameTime& NewTime);
+	void UpdateCelestialRotation(const FAlchemyGameTime& NewTime);
+
+	float CalculateSunAngleDegrees(const FAlchemyGameTime& Time) const;
 
 	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
 	class ADirectionalLight* SunLight;
 
 	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
-	float SunPitchOffset = 93.0f;
+	float SunPitchOffset = 0.0f;
 
 	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
 	float SunYaw = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
+	class ADirectionalLight* MoonLight;
+
+	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
+	float MoonPitchOffset = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
+	float MoonYaw = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
+	float SunriseHour = 4.0f;
+
+	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
+	float SunsetHour = 20.0f;
 
 	UPROPERTY(EditAnywhere, Category = "DayNightCycle")
 	class UGameTimeSubsystem* TimeSubsystem;

@@ -101,6 +101,22 @@ FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& G, const F
     //    return FReply::Handled();
     //}
 
+    if (E.GetEffectingButton() == EKeys::RightMouseButton)
+    {
+        if (OwnerInventory && OwnerInventory->Slots.IsValidIndex(SlotIndex) &&
+            OwnerInventory->Slots[SlotIndex].Quantity > 0)
+        {
+            FItemUseResult Result = OwnerInventory->Slots[SlotIndex].Item->UseItem(FItemUseContext{GetOwningPlayerPawn(), OwnerInventory, SlotIndex, OwnerInventory->Slots[SlotIndex]});
+            if (Result.bSuccess)
+            {
+                if (Result.bConsumeOneItem)
+                {
+                    FInventorySlot RemovedSlot;
+                    OwnerInventory->RemoveAt(SlotIndex, 1, RemovedSlot);
+                }
+            }
+        }
+    }
     if (E.GetEffectingButton() == EKeys::LeftMouseButton)
     {
         if (OwnerInventory && OwnerInventory->Slots.IsValidIndex(SlotIndex) &&

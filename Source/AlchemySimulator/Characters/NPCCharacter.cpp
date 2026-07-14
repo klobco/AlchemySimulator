@@ -5,6 +5,7 @@
 #include "AIController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Controllers/AlchemyNPCConroller.h"
 
 // Sets default values
 ANPCCharacter::ANPCCharacter()
@@ -15,13 +16,11 @@ ANPCCharacter::ANPCCharacter()
     bUseControllerRotationYaw = false;
 
     GetCharacterMovement()->bOrientRotationToMovement = true;
+
+    AIControllerClass = AAlchemyNPCConroller::StaticClass();
 }
 
 void ANPCCharacter::BeginPlay()
 {
     Super::BeginPlay();
-
-
-    AAIController* NPCController = Cast<AAIController>(GetController());
-    NPCController->MoveToLocation(FVector(0.0f, 0.0f, 0.0f));
 }

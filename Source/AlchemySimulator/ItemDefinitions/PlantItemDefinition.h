@@ -26,4 +26,6 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
     float Rarity = 1.0f;
 
+    virtual bool CanUseItem_Implementation(const FItemUseContext& Context) const override;
+	virtual FItemUseResult UseItem_Implementation(const FItemUseContext& Context) const override;
 };

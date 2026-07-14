@@ -21,7 +21,7 @@ void ADayNightCycleController::BeginPlay()
 	
 	TimeSubsystem = GetWorld()->GetSubsystem<UGameTimeSubsystem>();
 
-	TimeSubsystem->OnGameMinuteChanged.AddDynamic(this, &ADayNightCycleController::UpdateSunRotation);
+	TimeSubsystem->OnGameMinuteChanged.AddDynamic(this, &ADayNightCycleController::UpdateCelestialRotation);
 }
 
 // Called every frame
@@ -31,19 +31,45 @@ void ADayNightCycleController::Tick(float DeltaTime)
 
 }
 
-void ADayNightCycleController::UpdateSunRotation(const FAlchemyGameTime& NewTime)
+float ADayNightCycleController::CalculateSunAngleDegrees(const FAlchemyGameTime& Time) const
+{
+	const float TimeOfDayHours = Time.Hour + Time.Minute / 60.0f;
+	const float DayLength = SunsetHour - SunriseHour;
+	const float NightLength = 24.0f - DayLength;
+
+	if (TimeOfDayHours >= SunriseHour && TimeOfDayHours < SunsetHour)
+	{
+		const float DayFraction = (TimeOfDayHours - SunriseHour) / DayLength;
+		return DayFraction * 180.0f;
+	}
+
+	float HoursSinceSunset = TimeOfDayHours - SunsetHour;
+	if (HoursSinceSunset < 0.0f)
+	{
+		HoursSinceSunset += 24.0f;
+	}
+	const float NightFraction = HoursSinceSunset / NightLength;
+	return 180.0f + NightFraction * 180.0f;
+}
+
+void ADayNightCycleController::UpdateCelestialRotation(const FAlchemyGameTime& NewTime)
 {
 	if (!SunLight || !TimeSubsystem)
 	{
 		return;
 	}
 
-	const float DayProgress = TimeSubsystem->GetNormalizedDay();
+	const float SunAngle = CalculateSunAngleDegrees(NewTime);
 
-	const float SunPitch = DayProgress * 360.0f + SunPitchOffset;
+	UE_LOG(LogTemp, Log, TEXT("Sun Angle: %f"), SunAngle);
+	UE_LOG(LogTemp, Log, TEXT("Time is: %s"), *NewTime.ToString());
 
-	FRotator NewRotation(SunPitch, SunYaw, 0.0f);
+	SunLight->SetActorRotation(FRotator(-SunAngle + SunPitchOffset, SunYaw, 0.0f));
 
-	SunLight->SetActorRotation(NewRotation);
+	if (MoonLight)
+	{
+		const float MoonAngle = FMath::Fmod(SunAngle + 180.0f, 360.0f);
+		MoonLight->SetActorRotation(FRotator(-MoonAngle + MoonPitchOffset, MoonYaw, 0.0f));
+	}
 }
 

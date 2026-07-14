@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+#include "ItemMetadata.h"
 #include "ItemDefinitionBase.generated.h"
 
 class UTexture2D;
@@ -72,4 +73,14 @@ public:
     // --- Future-ready: optional per-item limits ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Misc", meta = (ClampMin = "0"))
     float Weight = 0.0f;
+
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Item|Use")
+    bool CanUseItem(const FItemUseContext& Context) const;
+
+    virtual bool CanUseItem_Implementation(const FItemUseContext& Context) const;
+
+    UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Item|Use")
+    FItemUseResult UseItem(const FItemUseContext& Context) const;
+
+    virtual FItemUseResult UseItem_Implementation(const FItemUseContext& Context) const;
 };

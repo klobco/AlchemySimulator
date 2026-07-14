@@ -15,6 +15,9 @@ public:
 	// Sets default values for this character's properties
 	ANPCCharacter();
 
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Schedule")
+    bool bShouldGoToWork = false;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
