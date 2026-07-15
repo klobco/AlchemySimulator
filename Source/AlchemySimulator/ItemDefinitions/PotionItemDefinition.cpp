@@ -7,6 +7,8 @@
 UPotionItemDefinition::UPotionItemDefinition()
 {
 	Category = EItemCategory::Potion;
+	bStackable = false;
+    MaxStackSize = 1;
 }
 
 
