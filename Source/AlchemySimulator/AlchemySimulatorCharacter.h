@@ -69,6 +69,9 @@ public:
 	/** Constructor */
 	AAlchemySimulatorCharacter();	
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	class UPatientConditionComponent* Condition;
+
 protected:
 
 	/** Initialize input action bindings */

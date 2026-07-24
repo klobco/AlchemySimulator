@@ -12,7 +12,7 @@ void UWidgetStackManager::PushWidget(UBaseGameWidget* Widget)
 {
 	if (!Widget) return;
 
-	
+	UE_LOG(LogTemp, Warning, TEXT("Pushing widget: %s"), *GetNameSafe(Widget));
 	const int32 ZOrder = BaseZOrder + WidgetStack.Num();
 	WidgetStack.Add(Widget);
 	Widget->AddToViewport(ZOrder);
@@ -27,6 +27,7 @@ void UWidgetStackManager::PopWidget()
 	UBaseGameWidget* Top = WidgetStack.Last();
 	if (!Top->CanClose()) return;
 
+	UE_LOG(LogTemp, Warning, TEXT("Popping widget: %s"), *GetNameSafe(Top));
 	WidgetStack.Pop();
 	Top->OnClosed();
 	Top->RemoveFromParent();

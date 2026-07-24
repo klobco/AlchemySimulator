@@ -106,6 +106,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Cursor")
 	TSubclassOf<class UCustomCursorWidget> CursorWidgetClass;
 
+	UPROPERTY(EditAnywhere, Category = "Cursor")
+	TSubclassOf<class UCharacterScreenWidget> CharacterScreenWidgetClass;
+
 	UPROPERTY()
 	TObjectPtr<class UCustomCursorWidget> CursorWidgetInstance = nullptr;
 

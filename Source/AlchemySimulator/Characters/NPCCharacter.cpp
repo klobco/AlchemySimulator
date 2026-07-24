@@ -4,6 +4,8 @@
 #include "Characters/NPCCharacter.h"
 #include "AIController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/Inventory/InventoryComponent.h"
+#include "Components/Disease/PatientConditionComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Controllers/AlchemyNPCConroller.h"
 
@@ -18,6 +20,9 @@ ANPCCharacter::ANPCCharacter()
     GetCharacterMovement()->bOrientRotationToMovement = true;
 
     AIControllerClass = AAlchemyNPCConroller::StaticClass();
+
+    InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+    PatientConditionComponent = CreateDefaultSubobject<UPatientConditionComponent>(TEXT("PatientConditionComponent"));
 }
 
 void ANPCCharacter::BeginPlay()

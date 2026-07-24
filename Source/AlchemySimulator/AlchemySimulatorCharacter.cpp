@@ -12,7 +12,8 @@
 #include "InputActionValue.h"
 #include "AlchemySimulator.h"
 #include "Components/Inventory/InventoryComponent.h"
-#include <AlchemySimulatorPlayerController.h>
+#include "Components/Disease/PatientConditionComponent.h"
+#include "AlchemySimulatorPlayerController.h"
 
 AAlchemySimulatorCharacter::AAlchemySimulatorCharacter()
 {
@@ -27,6 +28,8 @@ AAlchemySimulatorCharacter::AAlchemySimulatorCharacter()
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f);
+
+
 
 	// Note: For faster iteration times these variables, and many more, can be tweaked in the Character Blueprint
 	// instead of recompiling to adjust them
@@ -49,6 +52,8 @@ AAlchemySimulatorCharacter::AAlchemySimulatorCharacter()
 	FollowCamera->bUsePawnControlRotation = false;
 
 	inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
+
+	Condition = CreateDefaultSubobject<UPatientConditionComponent>(TEXT("Condition"));
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)

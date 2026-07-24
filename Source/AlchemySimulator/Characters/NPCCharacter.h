@@ -18,6 +18,12 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Schedule")
     bool bShouldGoToWork = false;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
+	class UInventoryComponent* InventoryComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Components")
+	class UPatientConditionComponent* PatientConditionComponent;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

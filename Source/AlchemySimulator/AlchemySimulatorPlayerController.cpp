@@ -27,6 +27,7 @@
 #include "Widgets/Menu/BaseGameWidget.h"
 #include "Widgets/WidgetStackManager.h"
 #include "DrawDebugHelpers.h"
+#include "Widgets/Menu/CharacterScreenWidget.h"
 #include "Components/PrimitiveComponent.h"
 #include "Framework/Application/SlateApplication.h"
 
@@ -255,6 +256,7 @@ void AAlchemySimulatorPlayerController::PushWidget(UBaseGameWidget* Widget)
 void AAlchemySimulatorPlayerController::PopWidget()
 {
 	WidgetManager->PopWidget();
+	UE_LOG(LogTemp, Error, TEXT("Popping widget"));	
 	// Re-enable camera tilt once all widgets are dismissed
 	if (InteractionRig && !WidgetManager->HasOpenWidgets())
 	{
@@ -326,6 +328,8 @@ void AAlchemySimulatorPlayerController::DoBack()
 		Interacting = false;
 		return;
 	}
+
+	PushWidget(CreateWidget<UCharacterScreenWidget>(this, CharacterScreenWidgetClass));
 
 }
 void AAlchemySimulatorPlayerController::DebugClick()

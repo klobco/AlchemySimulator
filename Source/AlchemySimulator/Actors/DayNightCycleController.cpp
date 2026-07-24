@@ -61,8 +61,8 @@ void ADayNightCycleController::UpdateCelestialRotation(const FAlchemyGameTime& N
 
 	const float SunAngle = CalculateSunAngleDegrees(NewTime);
 
-	UE_LOG(LogTemp, Log, TEXT("Sun Angle: %f"), SunAngle);
-	UE_LOG(LogTemp, Log, TEXT("Time is: %s"), *NewTime.ToString());
+	// UE_LOG(LogTemp, Log, TEXT("Sun Angle: %f"), SunAngle);
+	// UE_LOG(LogTemp, Log, TEXT("Time is: %s"), *NewTime.ToString());
 
 	SunLight->SetActorRotation(FRotator(-SunAngle + SunPitchOffset, SunYaw, 0.0f));
 

@@ -106,15 +106,7 @@ FReply UInventorySlotWidget::NativeOnMouseButtonDown(const FGeometry& G, const F
         if (OwnerInventory && OwnerInventory->Slots.IsValidIndex(SlotIndex) &&
             OwnerInventory->Slots[SlotIndex].Quantity > 0)
         {
-            FItemUseResult Result = OwnerInventory->Slots[SlotIndex].Item->UseItem(FItemUseContext{GetOwningPlayerPawn(), OwnerInventory, SlotIndex, OwnerInventory->Slots[SlotIndex]});
-            if (Result.bSuccess)
-            {
-                if (Result.bConsumeOneItem)
-                {
-                    FInventorySlot RemovedSlot;
-                    OwnerInventory->RemoveAt(SlotIndex, 1, RemovedSlot);
-                }
-            }
+            FItemUseResult Result = OwnerInventory->Slots[SlotIndex].Item->UseItem(FItemUseContext{GetOwningPlayerPawn(), OwnerInventory, SlotIndex, OwnerInventory->Slots[SlotIndex], GetOwningPlayerPawn()});
         }
     }
     if (E.GetEffectingButton() == EKeys::LeftMouseButton)

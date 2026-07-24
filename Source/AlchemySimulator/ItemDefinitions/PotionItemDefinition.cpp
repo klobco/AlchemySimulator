@@ -2,6 +2,7 @@
 
 
 #include "PotionItemDefinition.h"
+#include "Components/Inventory/InventoryComponent.h"
 #include "Components/Disease/PatientConditionComponent.h"
 
 UPotionItemDefinition::UPotionItemDefinition()
@@ -21,8 +22,6 @@ bool UPotionItemDefinition::CanUseItem_Implementation(const FItemUseContext& Con
 FItemUseResult UPotionItemDefinition::UseItem_Implementation(const FItemUseContext& Context) const
 {
 
-	UE_LOG(LogTemp, Warning, TEXT("Using potion item: %s"), *GetName());
-
 	if(!Context.Slot.Instance.bIsPotion) return FItemUseResult{false, false, FText::FromString(TEXT("This item is not a potion."))};
 
 	if(!Context.TargetActor) return FItemUseResult{false, false, FText::FromString(TEXT("No target actor specified."))};
@@ -34,10 +33,14 @@ FItemUseResult UPotionItemDefinition::UseItem_Implementation(const FItemUseConte
 
 	FTreatmentResult TreatmentResult = Context.TargetActor->FindComponentByClass<UPatientConditionComponent>()->ApplyPotion(Context.Slot.Instance);
 
+	UE_LOG(LogTemp, Warning, TEXT("Potion applied. Success: %s"), TreatmentResult.bCured ? TEXT("true") : TEXT("false"));
+
+	FInventorySlot RemovedSlot;
+	Context.Inventory->RemoveAt(Context.SlotIndex, 1, RemovedSlot);
 
 	FItemUseResult Result;
 	Result.bSuccess = true;
 	Result.bConsumeOneItem = true;
-	Result.Message = FText::FromString(TEXT("This potion cannot be used."));
+	Result.Message = FText::FromString(TEXT("Successfully Used the potion"));
 	return Result;
 }
