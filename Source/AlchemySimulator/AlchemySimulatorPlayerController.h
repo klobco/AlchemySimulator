@@ -103,6 +103,12 @@ public:
 	UFUNCTION()
 	void RestoreCustomCursor();
 
+	UFUNCTION()
+	void WidgetInputModeOn();
+
+	UFUNCTION()
+	void WidgetInputModeOff();
+
 	UPROPERTY(EditAnywhere, Category = "Cursor")
 	TSubclassOf<class UCustomCursorWidget> CursorWidgetClass;
 

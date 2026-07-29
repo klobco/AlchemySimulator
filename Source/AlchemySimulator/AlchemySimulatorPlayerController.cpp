@@ -205,6 +205,28 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 	}
 }
 
+void AAlchemySimulatorPlayerController::WidgetInputModeOff()
+{
+	bEnableMouseOverEvents = false;
+	bEnableClickEvents = false;
+	bShowMouseCursor = false;
+	SetIgnoreLookInput(false);
+	SetIgnoreMoveInput(false);
+
+	FInputModeGameOnly GameMode;
+	GameMode.SetConsumeCaptureMouseDown(false);
+	SetInputMode(GameMode);
+}
+
+void AAlchemySimulatorPlayerController::WidgetInputModeOn()
+{
+	bEnableMouseOverEvents = true;
+	bEnableClickEvents = true;
+	bShowMouseCursor = true;
+	SetIgnoreLookInput(true);
+	SetIgnoreMoveInput(true);
+}
+
 void AAlchemySimulatorPlayerController::RemoveStationController()
 {
 	ResetActiveTool();
@@ -251,16 +273,35 @@ void AAlchemySimulatorPlayerController::PushWidget(UBaseGameWidget* Widget)
 	{
 		InteractionRig->DisableTilt();
 	}
+
+	// Give the newly pushed widget immediate input focus so it responds to
+	// hover/click right away instead of requiring an initial "wake up" click.
+	if (Widget)
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetWidgetToFocus(Widget->TakeWidget());
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		SetInputMode(InputMode);
+	}
 }
 
 void AAlchemySimulatorPlayerController::PopWidget()
 {
 	WidgetManager->PopWidget();
-	UE_LOG(LogTemp, Error, TEXT("Popping widget"));	
+	UE_LOG(LogTemp, Error, TEXT("Popping widget"));
 	// Re-enable camera tilt once all widgets are dismissed
 	if (InteractionRig && !WidgetManager->HasOpenWidgets())
 	{
 		InteractionRig->EnableTilt();
+	}
+
+	// Hand input focus back to whichever widget is now on top of the stack.
+	if (UBaseGameWidget* NewTop = WidgetManager->GetTopWidget())
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetWidgetToFocus(NewTop->TakeWidget());
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		SetInputMode(InputMode);
 	}
 }
 
@@ -317,6 +358,10 @@ void AAlchemySimulatorPlayerController::DoBack()
 	if (WidgetManager->HasOpenWidgets())
 	{
 		PopWidget();
+		if (!WidgetManager->HasOpenWidgets() && !Interacting)
+		{
+			WidgetInputModeOff();
+		}
 		return;
 	}
 
@@ -330,6 +375,7 @@ void AAlchemySimulatorPlayerController::DoBack()
 	}
 
 	PushWidget(CreateWidget<UCharacterScreenWidget>(this, CharacterScreenWidgetClass));
+	WidgetInputModeOn();
 
 }
 void AAlchemySimulatorPlayerController::DebugClick()

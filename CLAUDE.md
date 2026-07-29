@@ -37,46 +37,99 @@ Declared in [Source/AlchemySimulator/AlchemySimulator.Build.cs](Source/AlchemySi
 
 ## Architecture
 
+### Folder Layout (Source/AlchemySimulator/)
+Most gameplay code has been reorganized out of the old flat `Public/`/`Private/` split into domain folders where `.h` and `.cpp` live side by side:
+- `Actors/Plants/`, `Actors/Tools/`, `Actors/Stations/`, `Actors/Potions/` — world actors
+- `Actors/DayNightCycleController.*` — sits directly under `Actors/`
+- `Components/Inventory/`, `Components/Minigame/`, `Components/Processing/`, `Components/Disease/`
+- `Widgets/Tables/`, `Widgets/Minigames/`, `Widgets/Menu/`, `Widgets/Inventory/`, plus `Widgets/CustomCursorWidget.*` and `Widgets/WidgetStackManager.*` directly under `Widgets/`
+- `DataAssets/` — all `UPrimaryDataAsset` alchemy definitions
+- `ItemDefinitions/` — all `UItemDefinitionBase` subclasses
+- `Subsystems/` — GameInstance/World subsystems
+- `Controllers/` — AI controllers (`Characters/` holds NPC pawns)
+- `StateTree/Tasks/` — custom StateTree task nodes
+- `Public/` / `Private/` at the module root is now reserved for cross-cutting, dependency-free headers used everywhere: `IInteractable`, `IUsebale`, `ItemMetadata.h`, `DataStructHelpers.h`, `InteractionCameraRig`, `InvDragOperation`
+- Root-level (no subfolder): `AlchemySimulatorCharacter`, `AlchemySimulatorPlayerController`, `AlchemySimulatorGameMode`, `AlchemySimulator.h`
+
+When adding a new class, match its domain folder rather than reviving `Public/`/`Private/`.
+
 ### Item System (Data-Asset-Driven)
-- `UItemDefinitionBase` — base DataAsset with `EItemCategory` (None, Herb, Ingredient, Tool, Knife, Potion)
-- `UPlantItemDefinition` — adds `EIngredientPart` (Whole, Leaf, Stem, Root, Fruit, Flower) for tracking which part of a plant an item represents
+- `UItemDefinitionBase` (`ItemDefinitions/`) — base `UPrimaryDataAsset` with `EItemCategory` (None, Herb, Ingredient, Tool, Potion) plus stacking, value, weight. Declares the generic use pipeline: `CanUseItem(FItemUseContext)` / `UseItem(FItemUseContext)` as `BlueprintNativeEvent`s (default implementation just returns failure/false — subclasses opt in)
+- `UPlantItemDefinition` — adds `EIngredientPart` (Whole, Leaf, Stem, Root, Fruit, Flower)
 - `UToolItemDefinition` — adds workbench cursor texture
-- `FItemInstanceData` — runtime data per item instance (currently: Quality)
-- `FInventorySlot` — pairs a definition with instance data
+- `UPotionItemDefinition` — `Category = Potion`, non-stackable (`MaxStackSize = 1`); overrides `UseItem_Implementation` to apply the potion to a target's `UPatientConditionComponent` (see Disease System) and consumes one item on success
+- `DataAssets/DataAssetPlantPart` — also an `UItemDefinitionBase` subclass; the alchemy-facing counterpart to a harvested plant part (substances it yields, base quality, allowed processing tags)
+- `FItemInstanceData` (`ItemMetadata.h`) — runtime per-instance data: `Quality`, `Freshness`, `ProcessingTags`, `ProcessingQuality`, `bIsProcessed`, `bIsPotion`, `RuntimeTags`, and an embedded `FPotionResult` when the instance is a brewed potion
+- `FInventorySlot` — pairs a definition with `FItemInstanceData` + quantity
+- `FItemUseContext` / `FItemUseResult` (`ItemMetadata.h`) — generic parameter/result pair for the use pipeline: context carries the user actor, its `UInventoryComponent`, slot index/data, and an optional `TargetActor`; result carries success, whether to consume one item, and a message
+
+### Generic "Use Item" Pipeline
+- Any item can be "used" via `UItemDefinitionBase::UseItem(FItemUseContext)`; the potion pipeline is the first concrete implementation (drink/administer → treat patient → consume item)
+- `IUsebale` (`Public/IUsebale.h`, deliberately spelled this way in-repo) — separate BlueprintNativeEvent interface (`Use(APawn* By)`) for world actors that want a simple "use me" affordance distinct from the inventory-item pipeline above
+- `FSTT_UseItemTask` (`StateTree/Tasks/STT_UseItem.*`) — custom StateTree AI task; instance data holds an `AAIController*` and an `FInventorySlot` so NPC behavior trees can trigger the same use pipeline (e.g., an NPC drinking a potion)
 
 ### Interaction System
-- `IInteractable` — interface (BlueprintNativeEvent): `GetInteractPrompt`, `CanInteract`, `Interact`, `OnFocStart`, `OnFocEnd`
+- `IInteractable` — interface (BlueprintNativeEvent): `GetInteractPrompt`, `GetInteractWorldLocation`, `CanInteract`, `Interact`, `OnFocStart`, `OnFocEnd`
 - `UInteractionDetectorComponent` — sphere (220 unit radius) + line-of-sight; tracks one focused target at a time
 - `AInteractionCameraRig` — repositions the camera during close interactions
 
 ### Inventory System
-- `UInventoryComponent` — max 24 slots, optional category whitelist, supports Add/Remove/Transfer/Move; used on character and on station objects
+- `UInventoryComponent` (`Components/Inventory/`) — max 24 slots, optional category whitelist, supports Add/Remove/Transfer/Move; used on character and on station objects
 - Workbenches (`ABasicInteractableStationObject`) hold two inventories: `herbsInventory` and `toolsInventory`, plus a `Tools` map and `ActiveToolIndex`
 
 ### Plant & World Objects
-- `ABasePlant` — composite mesh actor (Stem, Leaf_A, Leaf_B, Fruit), implements `IInteractable`; triggers the cut minigame; transitions between Inventory/OnStand/OnTable states
-- `APlantPart` — spawned after cutting; represents a single harvested plant part
-- `ABaseTool` / `AToolPestleAndMortar` — tool actors implementing `IInteractable`
-- `ABasicWorkbench` — workbench with DropZone/MovingZone, drag-and-drop support for herb placement on the table surface (position clamped to workbench bounds)
+- `ABasePlant` (`Actors/Plants/`) — composite mesh actor (Stem, Leaf_A, Leaf_B, Fruit), implements `IInteractable`; triggers the cut minigame; transitions between Inventory/OnStand/OnTable states
+- `APlantPart` (`Actors/Plants/`) — spawned after cutting; represents a single harvested plant part
+- `ABaseTool` / `AToolPestleAndMortar` (`Actors/Tools/`) — tool actors implementing `IInteractable`
+- `ABasicWorkbench` (`Actors/Stations/`) — workbench with DropZone/MovingZone, drag-and-drop support for herb placement on the table surface (position clamped to workbench bounds)
+- `ABasePotion` (`Actors/Potions/`) — world potion actor (`PotionMesh` root + attached `LiquidMesh`), implements `IInteractable`; picking it up adds `Item`/`Instance` to the player's inventory and destroys the world actor (mirrors the plant pickup pattern)
+
+### Alchemy Calculation & Substance System (DataAssets/)
+Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (`Subsystems/`, a `UGameInstanceSubsystem`):
+- `UDataAssetSubstanceDefinition` — a chemical substance: base alchemy effects, base toxicity, stability under heat/drying/crushing, tag-based properties, a color hint (feeds potion liquid color)
+- `UDataAssetAlchemyEfectDefinition` — an effect: display info + flags `bIsPositive` / `bIsRootCauseTreatment` / `bIsSymptomRelief` / `bIsSideEffect` (drives disease-treatment matching, not just flavor text)
+- `UDataAssetProcessingMethod` — a processing step (e.g. crushing, drying): potency/toxicity/stability multipliers, per-effect modifiers (`FProcessingEffectModifier`), and substance transformation rules (`FSubstanceTransformationRule`, e.g. substance A → substance B with a chance and amount multiplier)
+- `UProcessingComponent` (`Components/Processing/`) — `BuildProcessedInstance(originalInstance, processingMethod, minigameQuality)` turns a raw `FItemInstanceData` into a processed one by applying a `UDataAssetProcessingMethod`
+- `UAlchemyCalculationSubsystem::CalculatePotionFromSlots(TArray<FInventorySlot>)` — combines processed ingredient slots into a final `FPotionResult` (effects, toxicity, purity, stability, potion color)
+- Shared alchemy structs all live in `Public/DataStructHelpers.h` (not `ItemMetadata.h`): `FMinigameResult`, `FAlchemyEffectValue`, `FSubstanceAmount`, `FIngredientInstance`, `FPlantPartHarvestData`, `FProcessedIngredient`, `FPotionResult`, `FTreatmentRequirement`, `FPatientBodyState`, `FPatientCondition`, `FTreatmentResult` — check this file before adding any new alchemy/disease-related struct
+
+### Disease & Patient System
+- `UDataAssetDisease` (`DataAssets/`) — disease tags, visible symptom tags, `TArray<FTreatmentRequirement>` (each requirement points at a required `UDataAssetAlchemyEfectDefinition` + value + mandatory flag), relevant nutrient tags, max allowed toxicity, progression speed
+- `UPatientConditionComponent` (`Components/Disease/`) — attached to anything that can get sick/be treated (both `ANPCCharacter` and `AAlchemySimulatorCharacter` have one via a `Condition` member); holds `FPatientCondition` (disease, body state, severity, progress, visible symptoms); `ApplyPotion(FItemInstanceData)` is the entry point potions call into
+- `UDiseaseTreatmentSubsystem` (`Subsystems/`, `UGameInstanceSubsystem`) — `EvaluateTreatment(FPotionResult, FPatientCondition)` matches a potion's effects against the disease's treatment requirements and returns an `FTreatmentResult` (cured / worsened / progress change / new symptoms)
+- The player character itself is a valid potion target (has `Condition`), not just NPCs — self-treatment and NPC-treatment share the exact same pipeline
+
+### NPCs & AI
+- `ANPCCharacter` (`Characters/`) — `ACharacter` with `UInventoryComponent` + `UPatientConditionComponent` + a `bShouldGoToWork` schedule flag
+- `AAlchemyNPCConroller` (`Controllers/`, name misspelled in-repo — keep the existing spelling for consistency) — `AAIController` owning a `UStateTreeAIComponent`; NPC behavior (schedules, being treated) runs through StateTree, not Blueprint AI or Behavior Trees
+- `FSTT_UseItemTask` — see "Generic Use Item Pipeline" above; the StateTree-side hook for NPCs to consume/administer items
+
+### Day/Night & Game Time
+- `UGameTimeSubsystem` (`Subsystems/`, `UTickableWorldSubsystem`) — owns `FAlchemyGameTime` (Year/Month/Day/Hour/Minute); `RealSecondsPerGameMinute` (default 0.1) controls simulation speed; broadcasts `OnGameMinuteChanged` / `OnGameHourChanged` / `OnGameDayChanged`; `GetNormalizedDay()` returns time-of-day as 0..1 for lighting/shader use
+- `ADayNightCycleController` (`Actors/`) — binds to `UGameTimeSubsystem`'s tick events and rotates a Sun and Moon `ADirectionalLight` based on `SunriseHour`/`SunsetHour`; this is the only consumer of `GetNormalizedDay`/game-time ticks for lighting today — new systems that care about time-of-day (NPC schedules, plant growth, shop hours) should subscribe to the same subsystem rather than polling `ADayNightCycleController`
 
 ### Minigame System
-- `UAlchemyMinigameWidget` — base widget; exposes `OnMinigameFinished` delegate
+- `UAlchemyMinigameWidget` (`Widgets/Minigames/`) — base widget; exposes `OnMinigameFinished` delegate
 - `UAlchemyCutMinigameWidget` — 20-segment ring with 4 green zones; indicator moves at 0.08 s/segment tick
-- `UMinigameManagerComponent` — owns the active minigame widget lifecycle (create, show, destroy)
+- `UMinigameManagerComponent` (`Components/Minigame/`) — owns the active minigame widget lifecycle (create, show, destroy)
+- Minigame results (`FMinigameResult` — success/score/quality multiplier) feed into `UProcessingComponent::BuildProcessedInstance` as the `minigameQuality` input
 
 ### UI / Widget Stack
-- `UBaseGameWidget` — base for modal widgets; lifecycle: `OnOpened` / `OnClosed` / `CanClose`
-- `UWidgetStackManager` — modal stack (Z-order starts at 100); `PushWidget` / `PopWidget` / `CloseAll`; `CanClose` veto prevents stack pop
-- `UTableWidget` / `UTableInventoryWidget` — workbench UI
-- `UInventoryWidget` / `UInventorySlotWidget` — character inventory UI
+- `UBaseGameWidget` (`Widgets/Menu/`) — base for modal widgets; lifecycle: `OnOpened` / `OnClosed` / `CanClose`
+- `UWidgetStackManager` (`Widgets/`) — modal stack (Z-order starts at 100); `PushWidget` / `PopWidget` / `CloseAll`; `CanClose` veto prevents stack pop
+- `UTableWidget` / `UTableInventoryWidget` (`Widgets/Tables/`) — workbench UI
+- `UInventoryWidget` / `UInventorySlotWidget` (`Widgets/Inventory/`) — character inventory UI
+- `UCharacterScreenWidget` (`Widgets/Menu/`) — full character screen (binds a `UInventoryWidget`); opened via `AAlchemySimulatorPlayerController::CharacterScreenWidgetClass`, same modal stack as everything else
 
 ### Player Controller
-- `AAlchemySimulatorPlayerController` — manages input mapping context, widget stack reference, and drag mechanics (`UInvDragOperation`)
+- `AAlchemySimulatorPlayerController` — manages input mapping context, widget stack reference, drag mechanics (`UInvDragOperation`), the active tool, and now also the character screen (`CharacterScreenWidgetClass`)
 
 ## Key Conventions
 
-- Headers live in `Public/`, implementations in `Private/` under `Source/AlchemySimulator/`
-- BlueprintNativeEvent is preferred for interaction callbacks so Blueprint subclasses can override without breaking C++ defaults
+- New non-cross-cutting classes go in a domain folder (`Actors/<X>/`, `Components/<X>/`, `Widgets/<X>/`, `DataAssets/`, `ItemDefinitions/`, `Subsystems/`, `Controllers/`, `Characters/`, `StateTree/Tasks/`) with `.h`/`.cpp` side by side — do not add new files to the old flat `Public/`/`Private/` unless the class is a dependency-free interface or shared struct file used module-wide
+- BlueprintNativeEvent is preferred for interaction/use/AI callbacks so Blueprint subclasses can override without breaking C++ defaults (`IInteractable`, `IUsebale`, `UItemDefinitionBase::CanUseItem`/`UseItem`)
 - New interactable world objects should implement `IInteractable` and register with `UInteractionDetectorComponent` via overlap
 - Item definitions are DataAssets; create them in the editor and reference via soft pointers where load timing matters
+- Alchemy/disease shared structs go in `Public/DataStructHelpers.h`; item-instance/use-pipeline structs go in `Public/ItemMetadata.h` — keep that split when adding new structs
+- Anything that can be sick or treated gets a `UPatientConditionComponent`; anything a potion can act on is reached only through `FItemUseContext::TargetActor` + that component — don't special-case player vs. NPC treatment paths
 - Variant systems (Combat/Platforming/SideScrolling) are self-contained — do not reference main alchemy classes from them
