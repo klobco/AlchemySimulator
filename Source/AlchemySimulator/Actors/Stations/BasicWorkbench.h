@@ -28,7 +28,12 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<class UBoxComponent> MovingZone;
 
-	FVector ClampLocationToWorkbench(const FVector& WorldLocation) const;
+	/**
+	 * Clamp DesiredLocation so the whole of Actor's bounds stays inside MovingZone.
+	 * Accounts for meshes whose pivot isn't at their bounds centre. Z is left alone —
+	 * the drag plane sets height and physics settles the item onto the table.
+	 */
+	FVector ClampActorToWorkbench(const AActor* Actor, const FVector& DesiredLocation) const;
 
 	UFUNCTION(BlueprintCallable)
 	bool TryPlaceDraggedItem(class UInvDragOperation* DragOp, const FHitResult& Hit);

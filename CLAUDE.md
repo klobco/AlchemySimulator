@@ -82,6 +82,7 @@ When adding a new class, match its domain folder rather than reviving `Public/`/
 - `APlantPart` (`Actors/Plants/`) — spawned after cutting; represents a single harvested plant part
 - `ABaseTool` / `AToolPestleAndMortar` (`Actors/Tools/`) — tool actors implementing `IInteractable`
 - `ABasicWorkbench` (`Actors/Stations/`) — workbench with DropZone/MovingZone, drag-and-drop support for herb placement on the table surface (position clamped to workbench bounds)
+- **Keeping items on the table** — `ABasicWorkbench::ClampActorToWorkbench(Actor, DesiredLocation)` is the one clamp helper; it shrinks the `MovingZone` extents by the actor's own bounds and corrects for the pivot-to-bounds-centre offset, so the *whole mesh* stays on the table rather than just the pivot (clamping the pivot alone lets items overhang the edge). It deliberately does **not** clamp Z — the drag plane sets height and physics settles the item. Three callers: `ABasePlant::Tick`, `APlantPart::Tick` (post-release backstop, guarded on `IsSimulatingPhysics()`), and `AAlchemySimulatorPlayerController::PlayerTick` (during-drag, type-agnostic — it clamps whatever `DraggedActor` is). If items snap to the table centre, `MovingZone` is smaller than the item bounds and needs resizing in the workbench BP
 - `ABasePotion` (`Actors/Potions/`) — world potion actor (`PotionMesh` root + attached `LiquidMesh`), implements `IInteractable`; picking it up adds `Item`/`Instance` to the player's inventory and destroys the world actor (mirrors the plant pickup pattern)
 
 ### Alchemy Calculation & Substance System (DataAssets/)
@@ -124,6 +125,21 @@ Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (
 ### Player Controller
 - `AAlchemySimulatorPlayerController` — manages input mapping context, widget stack reference, drag mechanics (`UInvDragOperation`), the active tool, and now also the character screen (`CharacterScreenWidgetClass`)
 
+### Input Mode Management (single source of truth)
+`AAlchemySimulatorPlayerController::RefreshInputMode()` is the **only** place that may call `SetInputMode`. It *derives* the mode from current state instead of having callers push one, in strict priority order:
+1. **Active minigame** (`UMinigameManagerComponent::GetActiveMinigameWidget()`) → `FInputModeUIOnly` focused on that widget — fully modal
+2. **Top stack widget** (`UWidgetStackManager::GetTopWidget()`) → `FInputModeGameAndUI` focused on that widget — the most recently opened widget owns click priority
+3. **At a station** (`Interacting == true`, no widget open) → `FInputModeGameAndUI` with no widget focus + `FSlateApplication::SetAllUserFocusToGameViewport()`, so world clicks reach table items
+4. **Plain gameplay** → `FInputModeGameOnly`, cursor hidden
+
+Rules when touching this area:
+- **Never call `SetInputMode`, `bShowMouseCursor`, `bEnableClickEvents`, or `SetIgnore*Input` directly** — change the underlying state, then call `RefreshInputMode()`
+- Widget-stack changes refresh automatically: `BeginPlay` binds `HandleWidgetStackChanged` to `UWidgetStackManager::OnWidgetPushed` / `OnWidgetPopped`. `CloseAll` broadcasts once per popped widget, so every stack path is covered — this is why `PushWidget`/`PopWidget` no longer contain input-mode code
+- `RemoveStationController` clears `Interacting = false` itself, *before* refreshing — callers used to set it afterwards, which made the refresh see a stale station state
+- `RefreshInputMode()` must stay **idempotent**: `SetIgnoreLookInput`/`SetIgnoreMoveInput` are counter-based in UE, so it calls `ResetIgnore*Input()` first. Without that, `CloseAll` firing N refreshes would permanently freeze the pawn
+- Always set `SetHideCursorDuringCapture(false)` on `FInputModeGameAndUI`. It defaults to `true`, which hides and re-centers the OS cursor for the whole left-click-drag gesture and freezes `DeprojectMousePositionToWorld` — this silently breaks world dragging
+- Do **not** use `EMouseCaptureMode::NoCapture` to work around cursor issues; it disables capture-based click routing and makes the first click on the viewport an OS focus-activation click (a spurious "double-click required" bug)
+
 ## Key Conventions
 
 - New non-cross-cutting classes go in a domain folder (`Actors/<X>/`, `Components/<X>/`, `Widgets/<X>/`, `DataAssets/`, `ItemDefinitions/`, `Subsystems/`, `Controllers/`, `Characters/`, `StateTree/Tasks/`) with `.h`/`.cpp` side by side — do not add new files to the old flat `Public/`/`Private/` unless the class is a dependency-free interface or shared struct file used module-wide
@@ -133,3 +149,5 @@ Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (
 - Alchemy/disease shared structs go in `Public/DataStructHelpers.h`; item-instance/use-pipeline structs go in `Public/ItemMetadata.h` — keep that split when adding new structs
 - Anything that can be sick or treated gets a `UPatientConditionComponent`; anything a potion can act on is reached only through `FItemUseContext::TargetActor` + that component — don't special-case player vs. NPC treatment paths
 - Variant systems (Combat/Platforming/SideScrolling) are self-contained — do not reference main alchemy classes from them
+- Input mode is changed **only** via `AAlchemySimulatorPlayerController::RefreshInputMode()` — see "Input Mode Management" above
+- **Changing `PrimaryActorTick.bCanEverTick` in a C++ constructor does not reach Blueprint subclasses that were already saved** — the old value is serialized into the BP's CDO and keeps overriding the new default. Symptom: `Tick` silently never runs on the BP instance while the C++ class looks correct. `APlantPart::BeginPlay` works around this by force-registering its tick function; do the same when enabling tick on a class that already has BP children

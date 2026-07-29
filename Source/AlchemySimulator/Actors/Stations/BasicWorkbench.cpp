@@ -250,6 +250,8 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 			SpawnedPlantPart->SetActorLocation(Body->GetSocketLocation("ManipulationSocket"));
 			SpawnedPlantPart->SetActorRotation(FRotator(0.f, -5.f, 90.f));
 
+			SpawnedPlantPart->Body->SetSimulatePhysics(true);
+
 			UE_LOG(LogTemp, Warning, TEXT("Spawned plant part %s at location %s and rotation %s"), *SpawnedPlantPart->GetName(), *SpawnedPlantPart->GetActorLocation().ToString(), *SpawnedPlantPart->GetActorRotation().ToString());
 		}
 
@@ -275,24 +277,31 @@ bool ABasicWorkbench::RemoveHerbItem(AActor* HerbToRemove)
 	return false;
 }
 
-FVector ABasicWorkbench::ClampLocationToWorkbench(const FVector& WorldLocation) const
+FVector ABasicWorkbench::ClampActorToWorkbench(const AActor* Actor, const FVector& DesiredLocation) const
 {
-	if (!MovingZone)
+	if (!MovingZone || !Actor)
 	{
-		return WorldLocation;
+		return DesiredLocation;
 	}
 
+	FVector Origin, BoxExtent;
+	Actor->GetActorBounds(true, Origin, BoxExtent);
+
+	// The bounds centre is usually offset from the pivot (plant parts pivot at the
+	// base), so clamp the centre and convert back to a pivot location afterwards.
+	const FVector PivotToCentre = Origin - Actor->GetActorLocation();
+
 	const FTransform AreaTransform = MovingZone->GetComponentTransform();
+	FVector LocalCentre = AreaTransform.InverseTransformPosition(DesiredLocation + PivotToCentre);
 
-	// World -> Local
-	FVector LocalLocation = AreaTransform.InverseTransformPosition(WorldLocation);
+	// Shrink the allowed region by the item's own half-size so nothing overhangs.
+	FVector Allowed = MovingZone->GetScaledBoxExtent() - BoxExtent;
+	Allowed.X = FMath::Max(Allowed.X, 0.f);
+	Allowed.Y = FMath::Max(Allowed.Y, 0.f);
 
-	const FVector Extent = MovingZone->GetScaledBoxExtent();
+	LocalCentre.X = FMath::Clamp(LocalCentre.X, -Allowed.X, Allowed.X);
+	LocalCentre.Y = FMath::Clamp(LocalCentre.Y, -Allowed.Y, Allowed.Y);
+	// Z intentionally not clamped — the drag plane locks height, physics settles it.
 
-	LocalLocation.X = FMath::Clamp(LocalLocation.X, -Extent.X, Extent.X);
-	LocalLocation.Y = FMath::Clamp(LocalLocation.Y, -Extent.Y, Extent.Y);
-	LocalLocation.Z = FMath::Clamp(LocalLocation.Z, -Extent.Z, Extent.Z);
-	// Z is intentionally not clamped — the drag plane already locks the correct height
-
-	return AreaTransform.TransformPosition(LocalLocation);
+	return AreaTransform.TransformPosition(LocalCentre) - PivotToCentre;
 }

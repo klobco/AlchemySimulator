@@ -25,7 +25,6 @@ void UMinigameManagerComponent::StartMinigame(TSubclassOf<UAlchemyMinigameWidget
     if (!PC) return;
 
     PC->WidgetManager->CloseAll();
-    bWasInStation = PC->Interacting;
 
     if (ActiveMinigameWidget)
     {
@@ -39,10 +38,7 @@ void UMinigameManagerComponent::StartMinigame(TSubclassOf<UAlchemyMinigameWidget
         ActiveMinigameWidget->OnMinigameFinished.AddDynamic(this, &UMinigameManagerComponent::HandleMinigameFinished);
         ActiveMinigameWidget->AddToViewport();
 
-        FInputModeUIOnly InputMode;
-        InputMode.SetWidgetToFocus(ActiveMinigameWidget->TakeWidget());
-        PC->SetInputMode(InputMode);
-        PC->bShowMouseCursor = true;
+        PC->RefreshInputMode();
     }
 }
 
@@ -62,30 +58,14 @@ void UMinigameManagerComponent::StopMinigame()
 		AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner());
 		if (PC)
 		{
-			if (bWasInStation)
-			{
-				FSlateApplication::Get().SetAllUserFocusToGameViewport();
-				
-				FInputModeGameAndUI StationInputMode;
-				StationInputMode.SetHideCursorDuringCapture(false);
-				StationInputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-				PC->SetInputMode(StationInputMode);
-				PC->bShowMouseCursor = true;
+			// ActiveMinigameWidget is already null, so this falls through to whatever
+			// state we're returning to (station or plain gameplay).
+			PC->RefreshInputMode();
 
-				if (PC->CurrentMouseCursor == EMouseCursor::Custom && PC->CursorWidgetInstance)
-				{
-					GetWorld()->GetTimerManager().SetTimerForNextTick(PC, &AAlchemySimulatorPlayerController::RestoreCustomCursor);
-				}
-
-			}
-			else
+			if (PC->Interacting && PC->CurrentMouseCursor == EMouseCursor::Custom && PC->CursorWidgetInstance)
 			{
-				FInputModeGameOnly GameOnlyMode;
-				GameOnlyMode.SetConsumeCaptureMouseDown(false);
-				PC->SetInputMode(GameOnlyMode);
-				PC->bShowMouseCursor = false;
+				GetWorld()->GetTimerManager().SetTimerForNextTick(PC, &AAlchemySimulatorPlayerController::RestoreCustomCursor);
 			}
-			bWasInStation = false;
 		}
 	}
 }

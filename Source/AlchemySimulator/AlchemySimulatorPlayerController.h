@@ -69,6 +69,10 @@ protected:
 	UFUNCTION()
 	void OnFocusedChanged(UObject* NewObj, UObject* OldObj);
 
+	/** Bound to the widget stack's push/pop delegates so input mode follows the stack. */
+	UFUNCTION()
+	void HandleWidgetStackChanged(UBaseGameWidget* Widget);
+
 	void BindToDetector(APawn* InPawn);
 	void ResetActiveTool();
 
@@ -103,11 +107,13 @@ public:
 	UFUNCTION()
 	void RestoreCustomCursor();
 
-	UFUNCTION()
-	void WidgetInputModeOn();
-
-	UFUNCTION()
-	void WidgetInputModeOff();
+	/**
+	 * The single source of truth for input mode. Derives the correct mode from
+	 * current state rather than having callers push one, in priority order:
+	 * active minigame > top stack widget > at a station > plain gameplay.
+	 * Call this after any state change; never call SetInputMode directly.
+	 */
+	void RefreshInputMode();
 
 	UPROPERTY(EditAnywhere, Category = "Cursor")
 	TSubclassOf<class UCustomCursorWidget> CursorWidgetClass;

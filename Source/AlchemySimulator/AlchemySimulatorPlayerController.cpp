@@ -46,7 +46,15 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 	{
 		BindToDetector(GetPawn());
 	}
-	
+
+	// Input mode follows the widget stack — CloseAll broadcasts per popped widget,
+	// so every path that changes the stack refreshes the mode automatically.
+	if (WidgetManager)
+	{
+		WidgetManager->OnWidgetPushed.AddDynamic(this, &AAlchemySimulatorPlayerController::HandleWidgetStackChanged);
+		WidgetManager->OnWidgetPopped.AddDynamic(this, &AAlchemySimulatorPlayerController::HandleWidgetStackChanged);
+	}
+
 
 	if (!InteractionRig)
 	{
@@ -197,34 +205,79 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 		if(AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(C)){
 			AlchemyChar->GetMesh()->SetHiddenInGame(true, true);
 		}
-		bEnableMouseOverEvents = true;
-		bEnableClickEvents = true;
-		bShowMouseCursor = true;
-		SetIgnoreLookInput(true);
-		SetIgnoreMoveInput(true);
+		RefreshInputMode();
 	}
 }
 
-void AAlchemySimulatorPlayerController::WidgetInputModeOff()
+void AAlchemySimulatorPlayerController::HandleWidgetStackChanged(UBaseGameWidget* Widget)
 {
-	bEnableMouseOverEvents = false;
-	bEnableClickEvents = false;
-	bShowMouseCursor = false;
-	SetIgnoreLookInput(false);
-	SetIgnoreMoveInput(false);
-
-	FInputModeGameOnly GameMode;
-	GameMode.SetConsumeCaptureMouseDown(false);
-	SetInputMode(GameMode);
+	RefreshInputMode();
 }
 
-void AAlchemySimulatorPlayerController::WidgetInputModeOn()
+void AAlchemySimulatorPlayerController::RefreshInputMode()
 {
-	bEnableMouseOverEvents = true;
-	bEnableClickEvents = true;
-	bShowMouseCursor = true;
-	SetIgnoreLookInput(true);
-	SetIgnoreMoveInput(true);
+	// SetIgnore*Input is counter-based, so reset first — otherwise repeated
+	// refreshes (CloseAll broadcasts once per widget) would stack the counters.
+	ResetIgnoreLookInput();
+	ResetIgnoreMoveInput();
+
+	// Pawn look/move is suppressed in every context except plain gameplay.
+	const bool bSuppressPawnInput = true;
+
+	// 1. A minigame is fully modal.
+	if (MinigameManager && MinigameManager->GetActiveMinigameWidget())
+	{
+		FInputModeUIOnly Mode;
+		Mode.SetWidgetToFocus(MinigameManager->GetActiveMinigameWidget()->TakeWidget());
+		SetInputMode(Mode);
+		bShowMouseCursor = true;
+		bEnableMouseOverEvents = true;
+		bEnableClickEvents = true;
+		SetIgnoreLookInput(bSuppressPawnInput);
+		SetIgnoreMoveInput(bSuppressPawnInput);
+		return;
+	}
+
+	// 2. The top-most stack widget owns click priority.
+	if (UBaseGameWidget* Top = WidgetManager->GetTopWidget())
+	{
+		FInputModeGameAndUI Mode;
+		Mode.SetWidgetToFocus(Top->TakeWidget());
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		Mode.SetHideCursorDuringCapture(false);
+		SetInputMode(Mode);
+		bShowMouseCursor = true;
+		bEnableMouseOverEvents = true;
+		bEnableClickEvents = true;
+		SetIgnoreLookInput(bSuppressPawnInput);
+		SetIgnoreMoveInput(bSuppressPawnInput);
+		return;
+	}
+
+	// 3. At a station with no widget open — world clicks go to table items.
+	if (Interacting)
+	{
+		FInputModeGameAndUI Mode;
+		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		Mode.SetHideCursorDuringCapture(false);
+		SetInputMode(Mode);
+		bShowMouseCursor = true;
+		bEnableMouseOverEvents = true;
+		bEnableClickEvents = true;
+		SetIgnoreLookInput(bSuppressPawnInput);
+		SetIgnoreMoveInput(bSuppressPawnInput);
+		// No widget to focus, so focus the viewport itself or the first click is eaten.
+		FSlateApplication::Get().SetAllUserFocusToGameViewport();
+		return;
+	}
+
+	// 4. Plain gameplay — pawn input restored by the resets above.
+	FInputModeGameOnly Mode;
+	Mode.SetConsumeCaptureMouseDown(false);
+	SetInputMode(Mode);
+	bShowMouseCursor = false;
+	bEnableMouseOverEvents = false;
+	bEnableClickEvents = false;
 }
 
 void AAlchemySimulatorPlayerController::RemoveStationController()
@@ -247,22 +300,18 @@ void AAlchemySimulatorPlayerController::RemoveStationController()
 	}
 
 	CurrentStation = nullptr;
+	// Cleared here, before RefreshInputMode, so it doesn't still see us at a station.
+	Interacting = false;
+
 	ACharacter* C = Cast<ACharacter>(GetPawn());
 	if (C)
 	{
 		if(AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(C)){
 			AlchemyChar->GetMesh()->SetHiddenInGame(false, true);
 		}
-		bEnableMouseOverEvents = false;
-		bEnableClickEvents = false;
-		bShowMouseCursor = false;
-		SetIgnoreLookInput(false);
-		SetIgnoreMoveInput(false);
-
-		FInputModeGameOnly GameMode;
-		GameMode.SetConsumeCaptureMouseDown(false);
-		SetInputMode(GameMode);
 	}
+
+	RefreshInputMode();
 }
 
 void AAlchemySimulatorPlayerController::PushWidget(UBaseGameWidget* Widget)
@@ -274,15 +323,7 @@ void AAlchemySimulatorPlayerController::PushWidget(UBaseGameWidget* Widget)
 		InteractionRig->DisableTilt();
 	}
 
-	// Give the newly pushed widget immediate input focus so it responds to
-	// hover/click right away instead of requiring an initial "wake up" click.
-	if (Widget)
-	{
-		FInputModeGameAndUI InputMode;
-		InputMode.SetWidgetToFocus(Widget->TakeWidget());
-		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-		SetInputMode(InputMode);
-	}
+	// Input mode is refreshed via the stack's OnWidgetPushed delegate.
 }
 
 void AAlchemySimulatorPlayerController::PopWidget()
@@ -295,14 +336,7 @@ void AAlchemySimulatorPlayerController::PopWidget()
 		InteractionRig->EnableTilt();
 	}
 
-	// Hand input focus back to whichever widget is now on top of the stack.
-	if (UBaseGameWidget* NewTop = WidgetManager->GetTopWidget())
-	{
-		FInputModeGameAndUI InputMode;
-		InputMode.SetWidgetToFocus(NewTop->TakeWidget());
-		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-		SetInputMode(InputMode);
-	}
+	// Input mode is refreshed via the stack's OnWidgetPopped delegate.
 }
 
 void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)
@@ -357,11 +391,8 @@ void AAlchemySimulatorPlayerController::DoBack()
 
 	if (WidgetManager->HasOpenWidgets())
 	{
+		// PopWidget refreshes input mode via the stack delegate.
 		PopWidget();
-		if (!WidgetManager->HasOpenWidgets() && !Interacting)
-		{
-			WidgetInputModeOff();
-		}
 		return;
 	}
 
@@ -374,8 +405,8 @@ void AAlchemySimulatorPlayerController::DoBack()
 		return;
 	}
 
+	// PushWidget refreshes input mode via the stack delegate.
 	PushWidget(CreateWidget<UCharacterScreenWidget>(this, CharacterScreenWidgetClass));
-	WidgetInputModeOn();
 
 }
 void AAlchemySimulatorPlayerController::DebugClick()
@@ -593,7 +624,7 @@ void AAlchemySimulatorPlayerController::PlayerTick(float DeltaTime)
 		ABasicWorkbench* CurrentWorkbench = Cast<ABasicWorkbench>(CurrentStation);
 		if (CurrentWorkbench)
 		{
-			TargetLocation = CurrentWorkbench->ClampLocationToWorkbench(TargetLocation);
+			TargetLocation = CurrentWorkbench->ClampActorToWorkbench(DraggedActor, TargetLocation);
 		}
 	}
 

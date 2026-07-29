@@ -152,7 +152,7 @@ void ABasePlant::Tick(float DeltaTime)
 	if (HerbStatus == EHerbStatus::OnTable && ParentWorkbench && Stem && Stem->IsSimulatingPhysics())
 	{
 		const FVector MyLoc = GetActorLocation();
-		const FVector Clamped = ParentWorkbench->ClampLocationToWorkbench(MyLoc);
+		const FVector Clamped = ParentWorkbench->ClampActorToWorkbench(this, MyLoc);
 		if (!MyLoc.Equals(Clamped, 0.5f))
 		{
 			SetActorLocation(Clamped, false, nullptr, ETeleportType::TeleportPhysics);

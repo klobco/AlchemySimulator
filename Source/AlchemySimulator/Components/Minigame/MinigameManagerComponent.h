@@ -29,11 +29,13 @@ public:
 	UFUNCTION(BlueprintCallable)
     void StopMinigame();
 
+    /** The minigame currently on screen, or null. Drives input-mode priority. */
+    UFUNCTION(BlueprintPure)
+    UAlchemyMinigameWidget* GetActiveMinigameWidget() const { return ActiveMinigameWidget; }
+
 private:
     UPROPERTY()
     TObjectPtr<UAlchemyMinigameWidget> ActiveMinigameWidget;
-
-    bool bWasInStation = false;
 
     UFUNCTION()
     void HandleMinigameFinished(bool bSuccess);

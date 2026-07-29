@@ -15,7 +15,7 @@
 // Sets default values
 APlantPart::APlantPart()
 {
- 	PrimaryActorTick.bCanEverTick = false;
+ 	PrimaryActorTick.bCanEverTick = true;
 
 	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
 	RootComponent = Body;
@@ -25,6 +25,15 @@ APlantPart::APlantPart()
 void APlantPart::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// BP_PlantPart may have been saved while bCanEverTick was false; a serialized
+	// Blueprint value overrides the C++ constructor default, so force it on here.
+	PrimaryActorTick.bCanEverTick = true;
+	if (!PrimaryActorTick.IsTickFunctionRegistered())
+	{
+		PrimaryActorTick.RegisterTickFunction(GetLevel());
+	}
+	PrimaryActorTick.SetTickFunctionEnable(true);
 
 	if (Body)
 	{
@@ -121,6 +130,17 @@ void APlantPart::OnPestleFinished(bool bSuccess)
 void APlantPart::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	if (HerbStatus == EHerbStatus::OnTable && ParentWorkbench && Body && Body->IsSimulatingPhysics())
+	{
+		const FVector MyLoc = GetActorLocation();
+		const FVector Clamped = ParentWorkbench->ClampActorToWorkbench(this, MyLoc);
+		if (!MyLoc.Equals(Clamped, 0.5f))
+		{
+			SetActorLocation(Clamped, false, nullptr, ETeleportType::TeleportPhysics);
+			Body->SetPhysicsLinearVelocity(FVector::ZeroVector);
+		}
+	}
 }
 
 FText APlantPart::GetInteractPrompt_Implementation() const
