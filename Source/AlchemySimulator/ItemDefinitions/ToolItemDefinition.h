@@ -4,10 +4,16 @@
 
 #include "CoreMinimal.h"
 #include "ItemDefinitions/ItemDefinitionBase.h"
+#include "ItemMetadata.h"
 #include "ToolItemDefinition.generated.h"
 
 class UTexture2D;
 
+/**
+ * Physical shape of the tool. Drives where the workbench parents it (knife stand vs. body
+ * socket) — see ABasicWorkbench::AddTool. It is deliberately NOT used to decide what a tool
+ * does to a target; that is data, see UToolItemDefinition::Actions.
+ */
 UENUM(BlueprintType)
 enum class EToolCategory : uint8
 {
@@ -31,4 +37,11 @@ public:
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Category")
     EToolCategory ToolCategory = EToolCategory::None;
+
+    /**
+     * Everything this tool can do, in priority order — the first action the clicked target
+     * accepts is the one that runs. See UMinigameManagerComponent::TryStartToolAction.
+     */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Actions")
+    TArray<FToolAction> Actions;
 };

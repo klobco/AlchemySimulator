@@ -5,13 +5,15 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "IInteractable.h"
+#include "IToolActionTarget.h"
 #include "ItemMetadata.h"
+#include "GameplayTagContainer.h"
 #include "ItemDefinitions/PlantItemDefinition.h"
 #include "DataAssets/DataAssetPlantPart.h"
 #include "BasePlant.generated.h"
 
 UCLASS()
-class ALCHEMYSIMULATOR_API ABasePlant : public AActor, public IInteractable
+class ALCHEMYSIMULATOR_API ABasePlant : public AActor, public IInteractable, public IToolActionTarget
 {
 	GENERATED_BODY()
 	
@@ -52,11 +54,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	TObjectPtr<const UDataAssetPlantPart> FruitItem;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Item")
-	UStaticMeshComponent* InteractedPart;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
-	TSubclassOf<class UAlchemyCutMinigameWidget> CuttingMinigameWidgetClass;
+	/** Tool actions this plant accepts, e.g. ToolAction.Cut. The tool supplies the minigame. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tool")
+	FGameplayTagContainer AcceptedToolActions;
 
 	UPROPERTY()
 	class ABasicWorkbench* ParentWorkbench;
@@ -79,9 +79,6 @@ public:
 	UFUNCTION()
 	void HandleClicked(UPrimitiveComponent* Component, FKey ButtonPressed);
 
-	UFUNCTION()
-	void OnCuttingFinished(bool bSuccess);
-
 	void SetPlantHighlight(bool bEnabled);
 
 protected:
@@ -98,5 +95,8 @@ public:
 	virtual void    Interact_Implementation(APawn* By) override;
 	virtual void    OnFocStart_Implementation(APawn* By) override;
 	virtual void    OnFocEnd_Implementation(APawn* By) override;
+
+	virtual bool CanAcceptToolAction_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, UPrimitiveComponent* HitComponent) const override;
+	virtual void ApplyToolActionResult_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, const FMinigameResult& Result, UPrimitiveComponent* HitComponent) override;
 
 };

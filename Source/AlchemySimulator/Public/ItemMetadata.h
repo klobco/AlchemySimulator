@@ -4,11 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectPtr.h"
+#include "Templates/SubclassOf.h"
 #include "GameplayTagContainer.h"
 #include "DataStructHelpers.h"
 #include "ItemMetadata.generated.h"
 
 class UItemDefinitionBase;
+class UAlchemyMinigameWidget;
+class UDataAssetProcessingMethod;
 
 UENUM(BlueprintType)
 enum class EHerbStatus : uint8
@@ -16,6 +19,32 @@ enum class EHerbStatus : uint8
 	Inventory,
 	OnStand,
 	OnTable
+};
+
+/**
+ * One thing a tool can do to a target, configured on the tool's UToolItemDefinition.
+ *
+ * This is the whole reason targets no longer switch on EToolCategory: the tool owns the
+ * minigame and the processing method, and the target only answers "do I accept ActionTag?".
+ * A new tool is normally a new data asset, not new C++.
+ */
+USTRUCT(BlueprintType)
+struct ALCHEMYSIMULATOR_API FToolAction
+{
+    GENERATED_BODY()
+
+public:
+    /** What this action is — ToolAction.Cut, ToolAction.Crush. Targets match against this. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tool|Action")
+    FGameplayTag ActionTag;
+
+    /** Minigame run to perform the action. An action with no minigame is skipped. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tool|Action")
+    TSubclassOf<UAlchemyMinigameWidget> MinigameWidgetClass;
+
+    /** Processing applied to the target's instance data. Null for pure-harvest actions (cutting). */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tool|Action")
+    TObjectPtr<UDataAssetProcessingMethod> ProcessingMethod = nullptr;
 };
 
 USTRUCT(BlueprintType)

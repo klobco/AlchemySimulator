@@ -5,12 +5,14 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "IInteractable.h"
+#include "IToolActionTarget.h"
 #include "ItemMetadata.h"
+#include "GameplayTagContainer.h"
 #include "DataAssets/DataAssetPlantPart.h"
 #include "PlantPart.generated.h"
 
 UCLASS()
-class ALCHEMYSIMULATOR_API APlantPart : public AActor, public IInteractable
+class ALCHEMYSIMULATOR_API APlantPart : public AActor, public IInteractable, public IToolActionTarget
 {
 	GENERATED_BODY()
 	
@@ -27,26 +29,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	TObjectPtr<const UDataAssetPlantPart> Item;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Minigames")
-	TSubclassOf<class UPestleMortarMinigame> PestleMortarMinigameWidgetClass;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
 	UMaterialInstance* OverlayMaterialInstance;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Item")
 	EHerbStatus HerbStatus;
 
-	UPROPERTY(EditDefaultsOnly, Category="Alchemy|Processing")
-	TObjectPtr<UDataAssetProcessingMethod> PestleProcessingMethod;
+	/** Tool actions this part accepts, e.g. ToolAction.Crush. The tool supplies the minigame. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tool")
+	FGameplayTagContainer AcceptedToolActions;
 
 	UPROPERTY()
 	class ABasicWorkbench* ParentWorkbench = nullptr;
 
 	UFUNCTION()
 	void HandleBeginCursorOver(UPrimitiveComponent* Component);
-
-	UFUNCTION()
-	void OnPestleFinished(bool bSuccess);
 
 	UFUNCTION()
 	void HandleEndCursorOver(UPrimitiveComponent* Component);
@@ -68,5 +65,8 @@ public:
 	virtual void    Interact_Implementation(APawn* By) override;
 	virtual void    OnFocStart_Implementation(APawn* By) override;
 	virtual void    OnFocEnd_Implementation(APawn* By) override;
+
+	virtual bool CanAcceptToolAction_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, UPrimitiveComponent* HitComponent) const override;
+	virtual void ApplyToolActionResult_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, const FMinigameResult& Result, UPrimitiveComponent* HitComponent) override;
 
 };

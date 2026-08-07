@@ -9,8 +9,8 @@
 #include "Actors/Tools/BaseTool.h"
 #include "DataAssets/DataAssetProcessingMethod.h"
 #include "ItemDefinitions/ToolItemDefinition.h"
-#include "Widgets/Minigames/PestleMortarMinigame.h"
 #include "Components/Minigame/MinigameManagerComponent.h"
+#include "Components/Processing/ProcessingComponent.h"
 
 // Sets default values
 APlantPart::APlantPart()
@@ -66,65 +66,63 @@ void APlantPart::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 	if (HerbStatus != EHerbStatus::OnTable) return;
 	if (!ParentWorkbench) return;
 
-	if (ParentWorkbench->ActiveToolIndex == INDEX_NONE)
+	AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (!MyPC || !MyPC->MinigameManager) return;
+
+	// Find() returns null for a stale ActiveToolIndex — never dereference it blind.
+	ABaseTool* const* ToolPtr = ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
+	ABaseTool* Tool = ToolPtr ? *ToolPtr : nullptr;
+
+	// No tool held, or this tool does nothing to a plant part: fall back to dragging it.
+	if (!Tool || !Tool->Item || !MyPC->MinigameManager->TryStartToolAction(Tool->Item, this, Component))
 	{
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (!PC) return;
-		AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
-		if (!MyPC) return;
 		MyPC->StartWorldDrag(this);
-		return;
-	}
-
-	ABaseTool* Tool = *ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
-	if (!Tool || !Tool->Item) return;
-
-	if (Tool->Item->ToolCategory == EToolCategory::Pestle)
-	{
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (!PC) return;
-		AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
-		if (!MyPC || !MyPC->MinigameManager) return;
-
-		MyPC->MinigameManager->OnMinigameFinished.AddDynamic(this, &APlantPart::OnPestleFinished);
-		MyPC->MinigameManager->StartMinigame(PestleMortarMinigameWidgetClass);
 	}
 }
 
-void APlantPart::OnPestleFinished(bool bSuccess)
+bool APlantPart::CanAcceptToolAction_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, UPrimitiveComponent* HitComponent) const
 {
-    if (AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
-    {
-        MyPC->MinigameManager->OnMinigameFinished.RemoveDynamic(this, &APlantPart::OnPestleFinished);
-    }
+	if (HerbStatus != EHerbStatus::OnTable) return false;
+	if (!AcceptedToolActions.HasTag(Action.ActionTag)) return false;
 
-    if (!bSuccess)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[PlantPart] Pestle failed"));
-        return;
-    }
-    FItemInstanceData NewInstance = Instance;
-    NewInstance.bIsProcessed = true;
-    if (PestleProcessingMethod)
+	// Processing actions are additionally gated by the plant part's own data.
+	if (Action.ProcessingMethod)
 	{
-		NewInstance.ProcessingTags.AddTag(PestleProcessingMethod->ProcessingTag);
-		NewInstance.ProcessingQuality *= PestleProcessingMethod->GeneralPotencyMultiplier;
+		if (!Item || !Item->bCanBeProcessed) return false;
+		if (!Item->AllowedProcessingTags.HasTag(Action.ProcessingMethod->ProcessingTag)) return false;
 	}
-    NewInstance.ProcessingQuality *= 1.15f;
 
-    if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
-    {
-        if (APawn* P = PC->GetPawn())
-        {
-            if (UInventoryComponent* Inv = P->FindComponentByClass<UInventoryComponent>())
-            {
-                Inv->AddItem(Item, 1, NewInstance);
-            }
-        }
-    }
+	return true;
+}
 
-    ParentWorkbench->RemoveHerbItem(this);
-    Destroy();
+void APlantPart::ApplyToolActionResult_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, const FMinigameResult& Result, UPrimitiveComponent* HitComponent)
+{
+	if (!Result.bSuccess)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PlantPart] Action %s failed"), *Action.ActionTag.ToString());
+		return;
+	}
+
+	// The minigame's QualityMultiplier is what the old hardcoded 1.15f bonus stood in for.
+	const FItemInstanceData NewInstance = UProcessingComponent::BuildProcessedInstance(
+		Instance, Action.ProcessingMethod, Result.QualityMultiplier);
+
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (APawn* P = PC->GetPawn())
+		{
+			if (UInventoryComponent* Inv = P->FindComponentByClass<UInventoryComponent>())
+			{
+				Inv->AddItem(Item, 1, NewInstance);
+			}
+		}
+	}
+
+	if (ParentWorkbench)
+	{
+		ParentWorkbench->RemoveHerbItem(this);
+	}
+	Destroy();
 }
 
 void APlantPart::Tick(float DeltaTime)

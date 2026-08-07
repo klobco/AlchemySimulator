@@ -11,7 +11,7 @@ FItemInstanceData UProcessingComponent::BuildProcessedInstance(
     const FItemInstanceData& OriginalInstance,
     UDataAssetProcessingMethod* ProcessingMethod,
     float MiniGameQuality
-) const
+)
 {
     FItemInstanceData Result = OriginalInstance;
 

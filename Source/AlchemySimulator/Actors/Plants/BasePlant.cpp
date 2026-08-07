@@ -12,9 +12,7 @@
 #include "ItemMetadata.h"
 #include "Components/BoxComponent.h"
 #include "Components/Minigame/MinigameManagerComponent.h"
-#include "Widgets/Minigames/AlchemyCutMinigameWidget.h"
-#include "Widgets/Minigames/PestleMortarMinigame.h"
-#include "ItemDefinitions/PlantItemDefinition.h"
+#include "ItemDefinitions/ToolItemDefinition.h"
 
 // Sets default values
 ABasePlant::ABasePlant()
@@ -90,57 +88,20 @@ void ABasePlant::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 {
 	UE_LOG(LogTemp, Warning, TEXT("[HandleClicked] component: %s"), *GetNameSafe(Component));
 
-	if (HerbStatus == EHerbStatus::OnTable) {
-		
-		if (ParentWorkbench->ActiveToolIndex == INDEX_NONE)		 {
-			APlayerController* PC = GetWorld()->GetFirstPlayerController();
-			if (!PC) return;
+	if (HerbStatus != EHerbStatus::OnTable) return;
+	if (!ParentWorkbench) return;
 
-			AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
-			if (!MyPC) return;
+	AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (!MyPC || !MyPC->MinigameManager) return;
 
-			MyPC->StartWorldDrag(this);
-			return;
-		}
-		else
-		{
-			ABaseTool* tool = *ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
+	// Find() returns null for a stale ActiveToolIndex — never dereference it blind.
+	ABaseTool* const* ToolPtr = ParentWorkbench->Tools.Find(ParentWorkbench->ActiveToolIndex);
+	ABaseTool* Tool = ToolPtr ? *ToolPtr : nullptr;
 
-			if (tool->Item->ToolCategory == EToolCategory::Knife)
-			{
-				APlayerController* PC = GetWorld()->GetFirstPlayerController();
-				if (!PC) return;
-
-				AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(PC);
-				if (!MyPC) return;
-
-
-
-				if (!MyPC->MinigameManager) return;
-
-				InteractedPart = Cast<UStaticMeshComponent>(Component);
-				if (!InteractedPart) return;
-
-				if (InteractedPart == Stem){
-					
-					UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cannot cut stem while leafs are still visible"));
-					return;
-				}
-
-				MyPC->MinigameManager->OnMinigameFinished.AddDynamic(this, &ABasePlant::OnCuttingFinished);
-				MyPC->MinigameManager->StartMinigame(CuttingMinigameWidgetClass);
-
-				return;
-			}
-		}
-		
-
-	}
-
-	if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
+	// No tool held, or this tool does nothing to this plant: fall back to dragging it.
+	if (!Tool || !Tool->Item || !MyPC->MinigameManager->TryStartToolAction(Tool->Item, this, Component))
 	{
-		// napr. ak chce� ma� active plant namiesto active tool
-		// PC->SetActivePlant(this);
+		MyPC->StartWorldDrag(this);
 	}
 }
 
@@ -161,85 +122,94 @@ void ABasePlant::Tick(float DeltaTime)
 	}
 }
 
-void ABasePlant::OnCuttingFinished(bool bSuccess)
+bool ABasePlant::CanAcceptToolAction_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, UPrimitiveComponent* HitComponent) const
 {
-	if (AAlchemySimulatorPlayerController* MyPC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController()))
+	if (HerbStatus != EHerbStatus::OnTable) return false;
+	if (!AcceptedToolActions.HasTag(Action.ActionTag)) return false;
+
+	// Only the individual parts can be cut — the stem is what's left once they're gone.
+	const UStaticMeshComponent* Part = Cast<UStaticMeshComponent>(HitComponent);
+	if (!Part || Part == Stem)
 	{
-		MyPC->MinigameManager->OnMinigameFinished.RemoveDynamic(this, &ABasePlant::OnCuttingFinished);
+		return false;
 	}
 
-	if (bSuccess)
-	{
-		
-		UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cutting succeeded"));
+	return true;
+}
 
-		FItemInstanceData NewInstance = Instance;
-
-		if (bSuccess)
-		{
-			NewInstance.Quality = FMath::Clamp(NewInstance.Quality - 5, 0, 100);
-		}
-		else
-		{
-			NewInstance.Quality = FMath::Clamp(NewInstance.Quality - 25, 0, 100);
-		}
-
-		NewInstance.Freshness = 1.0f;
-		NewInstance.bIsProcessed = false;
-		NewInstance.ProcessingQuality = 1.0f;
-		NewInstance.ProcessingTags.Reset();
-
-        if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
-        {
-            if (APawn* P = PC->GetPawn())
-            {
-                if (UInventoryComponent* Inv = P->FindComponentByClass<UInventoryComponent>())
-                {
-					const FString PartName = InteractedPart->GetName();
-
-					
-					if (PartName.Contains(TEXT("Stem")))
-					{
-						Inv->AddItem(StemItem, 1,NewInstance);
-					}
-					else if (PartName.Contains(TEXT("Leaf")))
-					{
-						Inv->AddItem(LeafItem, 1,NewInstance);
-					}
-					else if (PartName.Contains(TEXT("Fruit")))
-					{
-						UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory"));
-						bool was = Inv->AddItem(FruitItem, 1,NewInstance);
-						UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory result: %s"), was ? TEXT("true") : TEXT("false"));
-					}
-                }
-            }
-        }
-
-		if (InteractedPart)
-		{
-			InteractedPart->SetVisibility(false);
-			InteractedPart->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		}
-
-		TArray<UStaticMeshComponent*> MeshComponents;
-		GetComponents<UStaticMeshComponent>(MeshComponents);
-		int32 visibleParts = 0;
-		for (UStaticMeshComponent* comp : MeshComponents) {
-			if (comp->IsVisible()) visibleParts++;
-		}
-
-		if (visibleParts == 1)
-		{
-			GetWorld()->GetFirstPlayerController()->GetPawn()->FindComponentByClass<UInventoryComponent>()->AddItem(StemItem, 1,NewInstance);
-			ParentWorkbench->RemoveHerbItem(this);
-			UE_LOG(LogTemp, Warning, TEXT("[BasePlant] All parts cut, destroying plant"));
-			Destroy();
-		}
-	}
-	else
+void ABasePlant::ApplyToolActionResult_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, const FMinigameResult& Result, UPrimitiveComponent* HitComponent)
+{
+	if (!Result.bSuccess)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cutting failed"));
+		return;
+	}
+
+	UStaticMeshComponent* CutPart = Cast<UStaticMeshComponent>(HitComponent);
+	if (!CutPart) return;
+
+	UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cutting succeeded"));
+
+	// Cutting harvests a raw part — it deliberately clears any processing state.
+	FItemInstanceData NewInstance = Instance;
+	NewInstance.Quality = FMath::Clamp(NewInstance.Quality - 5, 0, 100);
+	NewInstance.Freshness = 1.0f;
+	NewInstance.bIsProcessed = false;
+	NewInstance.ProcessingQuality = 1.0f;
+	NewInstance.ProcessingTags.Reset();
+
+	UInventoryComponent* Inv = nullptr;
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (APawn* P = PC->GetPawn())
+		{
+			Inv = P->FindComponentByClass<UInventoryComponent>();
+		}
+	}
+
+	if (Inv)
+	{
+		// TODO: name matching is fragile — a component-to-UDataAssetPlantPart map would be better.
+		const FString PartName = CutPart->GetName();
+
+		if (PartName.Contains(TEXT("Stem")))
+		{
+			Inv->AddItem(StemItem, 1, NewInstance);
+		}
+		else if (PartName.Contains(TEXT("Leaf")))
+		{
+			Inv->AddItem(LeafItem, 1, NewInstance);
+		}
+		else if (PartName.Contains(TEXT("Fruit")))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory"));
+			bool was = Inv->AddItem(FruitItem, 1, NewInstance);
+			UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory result: %s"), was ? TEXT("true") : TEXT("false"));
+		}
+	}
+
+	CutPart->SetVisibility(false);
+	CutPart->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	TArray<UStaticMeshComponent*> MeshComponents;
+	GetComponents<UStaticMeshComponent>(MeshComponents);
+	int32 visibleParts = 0;
+	for (UStaticMeshComponent* comp : MeshComponents) {
+		if (comp->IsVisible()) visibleParts++;
+	}
+
+	if (visibleParts == 1)
+	{
+		if (Inv)
+		{
+			Inv->AddItem(StemItem, 1, NewInstance);
+		}
+		if (ParentWorkbench)
+		{
+			ParentWorkbench->RemoveHerbItem(this);
+		}
+		UE_LOG(LogTemp, Warning, TEXT("[BasePlant] All parts cut, destroying plant"));
+		Destroy();
 	}
 }
 
