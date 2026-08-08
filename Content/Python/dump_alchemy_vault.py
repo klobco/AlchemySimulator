@@ -53,8 +53,10 @@ TYPES = {
     ),
     "DataAssetPlantPart": (
         "04 Herbs",
+        # AcceptedToolActions is design content (which tool harvests this part); WorldMesh and
+        # WorldMaterialOverride are presentation and deliberately stay out of the vault.
         ["DisplayName", "PlantPartTag", "BaseQuality", "bCanBeProcessed",
-         "AllowedProcessingTags", "Substances"],
+         "AllowedProcessingTags", "AcceptedToolActions", "Substances"],
     ),
 }
 

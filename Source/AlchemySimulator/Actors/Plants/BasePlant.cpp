@@ -11,8 +11,22 @@
 #include "Actors/Stations/BasicWorkbench.h"
 #include "ItemMetadata.h"
 #include "Components/BoxComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Components/Minigame/MinigameManagerComponent.h"
 #include "ItemDefinitions/ToolItemDefinition.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
+
+namespace
+{
+	/**
+	 * Marks components built by RebuildPartComponents. Teardown scans for this tag rather than
+	 * trusting GeneratedPartComponents, because that array is Transient and so does not survive
+	 * the actor duplication that happens when a level-placed plant enters PIE — the components
+	 * themselves do, and without the tag they would be orphaned and rebuilt on top of.
+	 */
+	static const FName GeneratedPartTag(TEXT("GeneratedPlantPart"));
+}
 
 // Sets default values
 ABasePlant::ABasePlant()
@@ -20,18 +34,8 @@ ABasePlant::ABasePlant()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	Stem = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Stem"));
-	RootComponent = Stem;
-
-	Leaf_A = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Leaf A"));
-	Leaf_A->SetupAttachment(Stem);
-
-	Leaf_B = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Leaf B"));
-	Leaf_B->SetupAttachment(Stem);
-
-	Fruit = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Fruit"));
-	Fruit->SetupAttachment(Stem);
-
+	Body = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Body"));
+	RootComponent = Body;
 }
 
 // Called when the game starts or when spawned
@@ -39,38 +43,178 @@ void ABasePlant::BeginPlay()
 {
 	Super::BeginPlay();
 
-	TArray<UStaticMeshComponent*> MeshComponents;
-	this->GetComponents<UStaticMeshComponent>(MeshComponents);
+	// Delegate binding deliberately does NOT happen here. On the workbench path the plant is
+	// spawned empty and only given its Item afterwards, so at BeginPlay there are no parts to
+	// bind to. RebuildPartComponents owns binding instead.
+}
 
-	UE_LOG(LogTemp, Warning, TEXT("base plant is in begin play"));
+void ABasePlant::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
 
-	for (UStaticMeshComponent* comp : MeshComponents) {
+	RebuildPartComponents();
+}
 
-		if (!comp) continue;
-		comp->OnBeginCursorOver.AddDynamic(this, &ABasePlant::HandleBeginCursorOver);
-		comp->OnEndCursorOver.AddDynamic(this, &ABasePlant::HandleEndCursorOver);
-		comp->OnClicked.AddDynamic(this, &ABasePlant::HandleClicked);
+void ABasePlant::InitializeFromDefinition(const UPlantItemDefinition* InDef, const FItemInstanceData& InInstance)
+{
+	Item = InDef;
+	Instance = InInstance;
 
+	if (Item)
+	{
+		SetActorScale3D(Item->WorldScale);
 	}
-	
+
+	RebuildPartComponents();
+}
+
+void ABasePlant::RebuildPartComponents()
+{
+	// --- Teardown ---------------------------------------------------------------------------
+	TArray<UStaticMeshComponent*> ExistingComponents;
+	GetComponents<UStaticMeshComponent>(ExistingComponents);
+	for (UStaticMeshComponent* Comp : ExistingComponents)
+	{
+		if (Comp && Comp != Body && Comp->ComponentHasTag(GeneratedPartTag))
+		{
+			Comp->DestroyComponent();
+		}
+	}
+
+	GeneratedPartComponents.Reset();
+	PartComponentToHarvestRow.Reset();
+	StructuralRow = INDEX_NONE;
+
+	if (!Body)
+	{
+		return;
+	}
+
+	if (!Item)
+	{
+		Body->SetStaticMesh(nullptr);
+		return;
+	}
+
+	// Editor preview must not accumulate delegate bindings across OnConstruction reruns.
+	const bool bBindDelegates = GetWorld() && GetWorld()->IsGameWorld();
+
+	// --- Build ------------------------------------------------------------------------------
+	for (int32 RowIndex = 0; RowIndex < Item->HarvestableParts.Num(); ++RowIndex)
+	{
+		const FPlantPartHarvestData& Row = Item->HarvestableParts[RowIndex];
+		const UDataAssetPlantPart* PartDef = Row.PlantPartDefinition;
+		if (!PartDef)
+		{
+			continue;
+		}
+
+		UStaticMesh* RowMesh = Row.Mesh ? Row.Mesh.Get() : PartDef->WorldMesh.Get();
+
+		// The structural row is the actor's own root body, not a separate component. It is never
+		// added to PartComponentToHarvestRow, which is what makes it un-cuttable.
+		if (Row.bIsStructural)
+		{
+			if (StructuralRow != INDEX_NONE)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[BasePlant] %s declares more than one structural part; using row %d."),
+					*GetNameSafe(Item), StructuralRow);
+				continue;
+			}
+
+			StructuralRow = RowIndex;
+			Body->SetStaticMesh(RowMesh);
+			if (PartDef->WorldMaterialOverride)
+			{
+				Body->SetMaterial(0, PartDef->WorldMaterialOverride);
+			}
+			continue;
+		}
+
+		for (int32 i = 0; i < Row.InstanceCount; ++i)
+		{
+			// NAME_None: a destroyed component lingers until GC, so reusing a stable name would
+			// collide on rebuild and get silently renamed anyway.
+			UStaticMeshComponent* Part = NewObject<UStaticMeshComponent>(this, NAME_None, RF_Transactional);
+			if (!Part)
+			{
+				continue;
+			}
+
+			const FName Socket = Row.AttachSockets.IsValidIndex(i) ? Row.AttachSockets[i] : NAME_None;
+			Part->SetupAttachment(Body, Socket);
+			Part->ComponentTags.Add(GeneratedPartTag);
+			Part->SetStaticMesh(RowMesh);
+
+			// Parts ride the structural body; only the root simulates.
+			Part->SetSimulatePhysics(false);
+			// Set the profile before the per-channel override — SetCollisionProfileName resets
+			// responses, so doing it the other way round would silently undo the Visibility block.
+			Part->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+			Part->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			// Required for OnClicked / OnBeginCursorOver to fire on this component.
+			Part->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+
+			// RegisterComponent is enough to make it render, including in the editor viewport.
+			// Deliberately NOT AddInstanceComponent: that serializes generated geometry into the
+			// .umap, so every OnConstruction rerun would dirty the level and reload would carry
+			// stale copies that only the tag scan above saves us from.
+			Part->RegisterComponent();
+
+			if (Socket.IsNone() && Row.RelativeTransforms.IsValidIndex(i))
+			{
+				Part->SetRelativeTransform(Row.RelativeTransforms[i]);
+			}
+
+			if (PartDef->WorldMaterialOverride)
+			{
+				Part->SetMaterial(0, PartDef->WorldMaterialOverride);
+			}
+
+			if (bBindDelegates)
+			{
+				Part->OnBeginCursorOver.AddDynamic(this, &ABasePlant::HandleBeginCursorOver);
+				Part->OnEndCursorOver.AddDynamic(this, &ABasePlant::HandleEndCursorOver);
+				Part->OnClicked.AddDynamic(this, &ABasePlant::HandleClicked);
+			}
+
+			GeneratedPartComponents.Add(Part);
+			PartComponentToHarvestRow.Add(Part, RowIndex);
+		}
+	}
+
+	if (StructuralRow == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BasePlant] %s has no structural harvest row — the plant has no body mesh."),
+			*GetNameSafe(Item));
+	}
+
+	// Unique: Body survives a rebuild, so a second call would otherwise bind it twice and fire
+	// the handlers twice per click. The generated parts are fresh objects and cannot double-bind.
+	if (bBindDelegates && Body)
+	{
+		Body->OnBeginCursorOver.AddUniqueDynamic(this, &ABasePlant::HandleBeginCursorOver);
+		Body->OnEndCursorOver.AddUniqueDynamic(this, &ABasePlant::HandleEndCursorOver);
+		Body->OnClicked.AddUniqueDynamic(this, &ABasePlant::HandleClicked);
+	}
 }
 
 void ABasePlant::SetPlantHighlight(bool bEnabled)
 {
+	UMaterialInterface* const Overlay =
+		(bEnabled && HerbStatus == EHerbStatus::OnStand) ? OverlayMaterialInstance : nullptr;
 
-	if (bEnabled && HerbStatus == EHerbStatus::OnStand)
+	if (Body)
 	{
-		if (Stem)   Stem->SetOverlayMaterial(OverlayMaterialInstance);
-		if (Leaf_A) Leaf_A->SetOverlayMaterial(OverlayMaterialInstance);
-		if (Leaf_B) Leaf_B->SetOverlayMaterial(OverlayMaterialInstance);
-		if (Fruit)  Fruit->SetOverlayMaterial(OverlayMaterialInstance);
+		Body->SetOverlayMaterial(Overlay);
 	}
-	else
+
+	for (UStaticMeshComponent* Part : GeneratedPartComponents)
 	{
-		if (Stem)   Stem->SetOverlayMaterial(nullptr);
-		if (Leaf_A) Leaf_A->SetOverlayMaterial(nullptr);
-		if (Leaf_B) Leaf_B->SetOverlayMaterial(nullptr);
-		if (Fruit)  Fruit->SetOverlayMaterial(nullptr);
+		if (Part)
+		{
+			Part->SetOverlayMaterial(Overlay);
+		}
 	}
 }
 
@@ -110,14 +254,14 @@ void ABasePlant::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (HerbStatus == EHerbStatus::OnTable && ParentWorkbench && Stem && Stem->IsSimulatingPhysics())
+	if (HerbStatus == EHerbStatus::OnTable && ParentWorkbench && Body && Body->IsSimulatingPhysics())
 	{
 		const FVector MyLoc = GetActorLocation();
 		const FVector Clamped = ParentWorkbench->ClampActorToWorkbench(this, MyLoc);
 		if (!MyLoc.Equals(Clamped, 0.5f))
 		{
 			SetActorLocation(Clamped, false, nullptr, ETeleportType::TeleportPhysics);
-			Stem->SetPhysicsLinearVelocity(FVector::ZeroVector);
+			Body->SetPhysicsLinearVelocity(FVector::ZeroVector);
 		}
 	}
 }
@@ -125,16 +269,17 @@ void ABasePlant::Tick(float DeltaTime)
 bool ABasePlant::CanAcceptToolAction_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, UPrimitiveComponent* HitComponent) const
 {
 	if (HerbStatus != EHerbStatus::OnTable) return false;
-	if (!AcceptedToolActions.HasTag(Action.ActionTag)) return false;
+	if (!Item) return false;
 
-	// Only the individual parts can be cut — the stem is what's left once they're gone.
-	const UStaticMeshComponent* Part = Cast<UStaticMeshComponent>(HitComponent);
-	if (!Part || Part == Stem)
-	{
-		return false;
-	}
+	// Only harvestable parts are in the map. The structural body never is, so it is automatically
+	// un-cuttable without the rule having to name a specific component.
+	const int32* Row = PartComponentToHarvestRow.Find(Cast<UStaticMeshComponent>(HitComponent));
+	if (!Row || !Item->HarvestableParts.IsValidIndex(*Row)) return false;
 
-	return true;
+	// Which tools reach this part is the part's own data, not the plant's — so one species can
+	// need a knife for its flower and pliers for its spines.
+	const UDataAssetPlantPart* PartDef = Item->HarvestableParts[*Row].PlantPartDefinition;
+	return PartDef && PartDef->AcceptedToolActions.HasTag(Action.ActionTag);
 }
 
 void ABasePlant::ApplyToolActionResult_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, const FMinigameResult& Result, UPrimitiveComponent* HitComponent)
@@ -146,7 +291,11 @@ void ABasePlant::ApplyToolActionResult_Implementation(UToolItemDefinition* Tool,
 	}
 
 	UStaticMeshComponent* CutPart = Cast<UStaticMeshComponent>(HitComponent);
-	if (!CutPart) return;
+	if (!CutPart || !Item) return;
+
+	const int32* RowPtr = PartComponentToHarvestRow.Find(CutPart);
+	if (!RowPtr || !Item->HarvestableParts.IsValidIndex(*RowPtr)) return;
+	const FPlantPartHarvestData& Harvest = Item->HarvestableParts[*RowPtr];
 
 	UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Cutting succeeded"));
 
@@ -167,42 +316,35 @@ void ABasePlant::ApplyToolActionResult_Implementation(UToolItemDefinition* Tool,
 		}
 	}
 
-	if (Inv)
+	// HarvestChance / MinYield / MaxYield were declared on FPlantPartHarvestData but never read
+	// until now — cutting used to always award exactly one of a hardcoded part.
+	if (Inv && Harvest.PlantPartDefinition && FMath::FRand() <= Harvest.HarvestChance)
 	{
-		// TODO: name matching is fragile — a component-to-UDataAssetPlantPart map would be better.
-		const FString PartName = CutPart->GetName();
-
-		if (PartName.Contains(TEXT("Stem")))
+		const int32 Yield = FMath::RandRange(Harvest.MinYield, FMath::Max(Harvest.MinYield, Harvest.MaxYield));
+		if (Yield > 0)
 		{
-			Inv->AddItem(StemItem, 1, NewInstance);
-		}
-		else if (PartName.Contains(TEXT("Leaf")))
-		{
-			Inv->AddItem(LeafItem, 1, NewInstance);
-		}
-		else if (PartName.Contains(TEXT("Fruit")))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory"));
-			bool was = Inv->AddItem(FruitItem, 1, NewInstance);
-			UE_LOG(LogTemp, Warning, TEXT("[BasePlant] Adding fruit to inventory result: %s"), was ? TEXT("true") : TEXT("false"));
+			Inv->AddItem(Harvest.PlantPartDefinition.Get(), Yield, NewInstance);
 		}
 	}
 
 	CutPart->SetVisibility(false);
 	CutPart->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PartComponentToHarvestRow.Remove(CutPart);
 
-	TArray<UStaticMeshComponent*> MeshComponents;
-	GetComponents<UStaticMeshComponent>(MeshComponents);
-	int32 visibleParts = 0;
-	for (UStaticMeshComponent* comp : MeshComponents) {
-		if (comp->IsVisible()) visibleParts++;
-	}
-
-	if (visibleParts == 1)
+	// The structural part is what remains once everything else is gone; it is never cut directly.
+	if (PartComponentToHarvestRow.IsEmpty())
 	{
-		if (Inv)
+		if (Inv && Item->HarvestableParts.IsValidIndex(StructuralRow))
 		{
-			Inv->AddItem(StemItem, 1, NewInstance);
+			const FPlantPartHarvestData& Structural = Item->HarvestableParts[StructuralRow];
+			if (Structural.PlantPartDefinition)
+			{
+				const int32 Yield = FMath::RandRange(Structural.MinYield, FMath::Max(Structural.MinYield, Structural.MaxYield));
+				if (Yield > 0)
+				{
+					Inv->AddItem(Structural.PlantPartDefinition.Get(), Yield, NewInstance);
+				}
+			}
 		}
 		if (ParentWorkbench)
 		{

@@ -11,6 +11,9 @@
 #include "ItemDefinitions/ToolItemDefinition.h"
 #include "Components/Minigame/MinigameManagerComponent.h"
 #include "Components/Processing/ProcessingComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 
 // Sets default values
 APlantPart::APlantPart()
@@ -41,6 +44,42 @@ void APlantPart::BeginPlay()
 		Body->OnEndCursorOver.AddDynamic(this, &APlantPart::HandleEndCursorOver);
 		Body->OnClicked.AddDynamic(this, &APlantPart::HandleClicked);
 	}
+}
+
+void APlantPart::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	ApplyPartVisuals();
+}
+
+void APlantPart::SetPartDefinition(const UDataAssetPlantPart* InDef)
+{
+	Item = InDef;
+	ApplyPartVisuals();
+}
+
+void APlantPart::ApplyPartVisuals()
+{
+	if (!Body)
+	{
+		return;
+	}
+
+	if (!Item)
+	{
+		Body->SetStaticMesh(nullptr);
+		return;
+	}
+
+	Body->SetStaticMesh(Item->WorldMesh);
+
+	if (Item->WorldMaterialOverride)
+	{
+		Body->SetMaterial(0, Item->WorldMaterialOverride);
+	}
+
+	SetActorScale3D(Item->WorldScale);
 }
 
 void APlantPart::HandleBeginCursorOver(UPrimitiveComponent* Component)
@@ -83,7 +122,9 @@ void APlantPart::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 bool APlantPart::CanAcceptToolAction_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, UPrimitiveComponent* HitComponent) const
 {
 	if (HerbStatus != EHerbStatus::OnTable) return false;
-	if (!AcceptedToolActions.HasTag(Action.ActionTag)) return false;
+
+	// Which tools reach this part is a property of the part itself, not of the actor.
+	if (!Item || !Item->AcceptedToolActions.HasTag(Action.ActionTag)) return false;
 
 	// Processing actions are additionally gated by the plant part's own data.
 	if (Action.ProcessingMethod)

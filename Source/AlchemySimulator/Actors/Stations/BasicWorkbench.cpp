@@ -195,11 +195,15 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 
 	if (ABasePlant* SpawnedPlant = Cast<ABasePlant>(SpawndedActor))
 		{
+			SpawnedPlant->Tags.Empty();
+
+			// Must run before the collision pass below: the plant's harvestable parts are created
+			// here, and if they miss that pass they spawn without collision and never register a
+			// click. Scale comes from the definition too, so no hardcoded value is needed.
+			SpawnedPlant->InitializeFromDefinition(Cast<UPlantItemDefinition>(CurrentSlot.Item.Get()), CurrentSlot.Instance);
+
 			TArray<UStaticMeshComponent*> MeshComponents;
 			SpawnedPlant->GetComponents<UStaticMeshComponent>(MeshComponents);
-
-			SpawnedPlant->SetActorScale3D(FVector(0.07f));
-			SpawnedPlant->Tags.Empty();
 			for (UStaticMeshComponent* MeshComp : MeshComponents)
 			{
 				if (!MeshComp) continue;
@@ -210,27 +214,28 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 
 			HerbsOnTable.Add(SpawnedPlant);
 
-			SpawnedPlant->Item = Cast<UPlantItemDefinition>(CurrentSlot.Item.Get());
-			SpawnedPlant->Instance = CurrentSlot.Instance;
-
 			SpawnedPlant->ParentWorkbench = this;
 			SpawnedPlant->HerbStatus = EHerbStatus::OnTable;
 
 			SpawnedPlant->SetActorLocation(Body->GetSocketLocation("ManipulationSocket"));
-			SpawnedPlant->SetActorRotation(FRotator(0.f, -5.f, 90.f));
+			SpawnedPlant->SetActorRotation(ItemDef->WorldTableRotation);
 
-			SpawnedPlant->Stem->SetSimulatePhysics(true);
+			// Only the root simulates; the generated parts ride it.
+			SpawnedPlant->Body->SetSimulatePhysics(true);
 
 			UE_LOG(LogTemp, Warning, TEXT("Spawned plant %s at location %s and rotation %s"), *SpawnedPlant->GetName(), *SpawnedPlant->GetActorLocation().ToString(), *SpawnedPlant->GetActorRotation().ToString());
 		}
 
 		if (APlantPart* SpawnedPlantPart = Cast<APlantPart>(SpawndedActor))
 		{
+			SpawnedPlantPart->Tags.Empty();
+
+			// Applies the part's mesh, material override and scale from its data asset.
+			SpawnedPlantPart->SetPartDefinition(Cast<UDataAssetPlantPart>(CurrentSlot.Item.Get()));
+			SpawnedPlantPart->Instance = CurrentSlot.Instance;
+
 			TArray<UStaticMeshComponent*> MeshComponents;
 			SpawnedPlantPart->GetComponents<UStaticMeshComponent>(MeshComponents);
-
-			SpawnedPlantPart->SetActorScale3D(FVector(0.07f));
-			SpawnedPlantPart->Tags.Empty();
 			for (UStaticMeshComponent* MeshComp : MeshComponents)
 			{
 				if (!MeshComp) continue;
@@ -241,14 +246,11 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 
 			HerbsOnTable.Add(SpawnedPlantPart);
 
-			SpawnedPlantPart->Item = Cast<UDataAssetPlantPart>(CurrentSlot.Item.Get());
-			SpawnedPlantPart->Instance = CurrentSlot.Instance;
-
 			SpawnedPlantPart->ParentWorkbench = this;
 			SpawnedPlantPart->HerbStatus = EHerbStatus::OnTable;
 
 			SpawnedPlantPart->SetActorLocation(Body->GetSocketLocation("ManipulationSocket"));
-			SpawnedPlantPart->SetActorRotation(FRotator(0.f, -5.f, 90.f));
+			SpawnedPlantPart->SetActorRotation(ItemDef->WorldTableRotation);
 
 			SpawnedPlantPart->Body->SetSimulatePhysics(true);
 

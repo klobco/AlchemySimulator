@@ -191,7 +191,7 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 
 			if (ABasePlant* basePlant = Cast<ABasePlant>(plant))
 			{
-				basePlant->Stem->SetSimulatePhysics(true);
+				basePlant->Body->SetSimulatePhysics(true);
 			}
 			 if (APlantPart* plantPart = Cast<APlantPart>(plant))
 			 {
@@ -290,7 +290,7 @@ void AAlchemySimulatorPlayerController::RemoveStationController()
 		for (AActor* plant : bench->HerbsOnTable) {
 			if (ABasePlant* basePlant = Cast<ABasePlant>(plant))
 			{
-				basePlant->Stem->SetSimulatePhysics(false);
+				basePlant->Body->SetSimulatePhysics(false);
 			}
 			if (APlantPart* plantPart = Cast<APlantPart>(plant))
 			{

@@ -21,20 +21,12 @@ public:
 	// Sets default values for this actor's properties
 	ABasePlant();
 
+	/**
+	 * The structural body (stem/stipe/trunk). Root component, and the only simulating physics
+	 * body — every harvestable part rides it. Shows the mesh of the bIsStructural harvest row.
+	 */
 	UPROPERTY(EditAnywhere, Category = "components")
-	class UStaticMeshComponent* Stem;
-
-	UPROPERTY(EditAnywhere, Category = "components")
-	UStaticMeshComponent* Leaf_A;
-
-	UPROPERTY(EditAnywhere, Category = "components")
-	UStaticMeshComponent* Leaf_B;
-
-	UPROPERTY(EditAnywhere, Category = "components")
-	UStaticMeshComponent* Fruit;
-
-	UPROPERTY(EditDefaultsOnly, Category = "components")
-	int32 LeafCount = 2;
+	class UStaticMeshComponent* Body;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	float CurrentQuality = 1.0f;
@@ -42,21 +34,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	float CurrentFreshness = 1.0f;
 
+	/** The species. Its HarvestableParts array is the single source of truth for this plant's anatomy. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	TObjectPtr<const UPlantItemDefinition> Item;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const UDataAssetPlantPart> StemItem;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const UDataAssetPlantPart> LeafItem;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
-	TObjectPtr<const UDataAssetPlantPart> FruitItem;
-
-	/** Tool actions this plant accepts, e.g. ToolAction.Cut. The tool supplies the minigame. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tool")
-	FGameplayTagContainer AcceptedToolActions;
 
 	UPROPERTY()
 	class ABasicWorkbench* ParentWorkbench;
@@ -81,13 +61,46 @@ public:
 
 	void SetPlantHighlight(bool bEnabled);
 
+	/**
+	 * Runtime entry point: point this actor at a species and build its parts. Assigns Item and
+	 * Instance, applies WorldScale, then rebuilds the generated part components.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Item")
+	void InitializeFromDefinition(const UPlantItemDefinition* InDef, const FItemInstanceData& InInstance);
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
+	/**
+	 * Tears down every generated part component and rebuilds them from Item->HarvestableParts.
+	 * Also where the cursor/click delegates are bound — BeginPlay is too early, because on the
+	 * workbench path the parts do not exist until the workbench assigns Item.
+	 */
+	void RebuildPartComponents();
+
+	/** Generated part meshes, owned by this actor and destroyed on every rebuild. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> GeneratedPartComponents;
+
+	/**
+	 * Component -> index into Item->HarvestableParts. Stores the row index rather than the part
+	 * definition so a single lookup also yields MinYield/MaxYield/HarvestChance. The structural
+	 * part is deliberately absent, which is what makes it un-cuttable.
+	 */
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UStaticMeshComponent>, int32> PartComponentToHarvestRow;
+
+	/** Index of the bIsStructural row in Item->HarvestableParts, or INDEX_NONE. */
+	UPROPERTY(Transient)
+	int32 StructuralRow = INDEX_NONE;
+
+public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+	/** Makes editing Item in the details panel assemble the plant in the viewport immediately. */
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 	virtual FText   GetInteractPrompt_Implementation() const override;
 	virtual FVector GetInteractWorldLocation_Implementation() const override;

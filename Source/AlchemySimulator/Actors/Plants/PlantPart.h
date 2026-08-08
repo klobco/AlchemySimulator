@@ -35,12 +35,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Item")
 	EHerbStatus HerbStatus;
 
-	/** Tool actions this part accepts, e.g. ToolAction.Crush. The tool supplies the minigame. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Tool")
-	FGameplayTagContainer AcceptedToolActions;
-
 	UPROPERTY()
 	class ABasicWorkbench* ParentWorkbench = nullptr;
+
+	/**
+	 * Runtime entry point: point this actor at a part definition and take its mesh, material and
+	 * scale from it. One BP_PlantPart serves every harvested part in the game.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Item")
+	void SetPartDefinition(const UDataAssetPlantPart* InDef);
 
 	UFUNCTION()
 	void HandleBeginCursorOver(UPrimitiveComponent* Component);
@@ -55,9 +58,15 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
+	/** Pushes Item's mesh/material/scale onto Body. Safe to call in the editor and at runtime. */
+	void ApplyPartVisuals();
+
+public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+	/** Makes editing Item in the details panel show the right mesh in the viewport immediately. */
+	virtual void OnConstruction(const FTransform& Transform) override;
 
 	virtual FText   GetInteractPrompt_Implementation() const override;
 	virtual FVector GetInteractWorldLocation_Implementation() const override;
