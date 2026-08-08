@@ -5,6 +5,24 @@
 This project uses OpenWolf for context management. Read and follow .wolf/OPENWOLF.md every session. Check .wolf/cerebrum.md before generating code. Check .wolf/anatomy.md before reading files.
 
 
+# Design Vault (outside this repo)
+
+Game **content design** — substances, effects, diseases, herbs, balance reasoning — lives in an Obsidian vault at:
+
+```
+C:\Users\marti\Obsidian\AlchemyGame
+```
+
+It is its own git repository, separate from this one. Commit design changes there as you would code.
+
+- Read `00 Home.md` there before any task about alchemy content, balance, diseases, or "what should this substance do".
+- The split is strict: **the vault owns design intent, this repo owns implementation.** Architecture and file layout stay in `CLAUDE.md` / `.wolf/anatomy.md`; do not copy them into the vault, and do not copy design content into `.wolf/`.
+- Vault frontmatter keys mirror C++ `UPROPERTY` names exactly, so a note maps 1:1 onto a data asset's fields.
+- `01 Systems/*.md` are **transcriptions of this repo's C++** and carry a `source:` key naming the file. If you change that source file, update the note in the same task — a stale design doc is worse than none.
+- Content notes are generated from the engine by `Content/Python/dump_alchemy_vault.py` (see "Regenerating vault content" below). Do not hand-edit their frontmatter; it will be overwritten.
+- The vault is **not** version controlled. Be careful with destructive edits there.
+
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -26,6 +44,61 @@ Direct UBT invocation (from project root):
 ```
 
 No automated test runner is configured. Testing is done by running the editor and playing in-editor.
+
+## Regenerating vault content
+
+`Content/Python/dump_alchemy_vault.py` reads the alchemy data assets out of the editor and writes their values into the design vault (see "Design Vault" above). `.uasset` is binary, so this script is the **only** way to get real asset values into the vault — never hand-transcribe them, and never guess them.
+
+Requires the `PythonScriptPlugin` (enabled in the `.uproject`). From the editor: Output Log → console dropdown → **Python**:
+
+```python
+import dump_alchemy_vault
+dump_alchemy_vault.run()          # add dry_run=True to preview
+```
+
+After editing the script, reload it: `import importlib; importlib.reload(dump_alchemy_vault)`.
+
+**Headless (no GUI) — this is how Claude can run it without you:**
+
+```bash
+"C:/Program Files/Epic Games/UE_5.7/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
+  "<project>/AlchemySimulator.uproject" \
+  -run=pythonscript -script="import dump_alchemy_vault; dump_alchemy_vault.run()" \
+  -unattended -nosplash -nopause -nullrhi -stdout
+```
+
+Takes ~30s. `-nullrhi` skips the renderer, `-unattended` prevents dialogs. **Close the editor first** — two processes on one project contend over the asset registry and DDC. This is a read-only load plus a vault write; it does not build, and does not modify any `.uasset`.
+
+What it touches, and what it must never touch:
+- It rewrites **only** the YAML frontmatter and the block between `<!-- generated:begin -->` / `<!-- generated:end -->`. All other prose is preserved byte-for-byte — this is the contract that makes the vault safe to regenerate, so keep it if you modify the script.
+- Notes are matched to assets by the `asset:` frontmatter key, not by filename, so vault notes can be freely renamed or moved.
+- Files starting with `_` are templates and are skipped, as are `asset:` values that are a bare prefix (`DA_Substance_`).
+- Missing notes are created; nothing is ever deleted.
+
+Covered classes: `UDataAssetSubstanceDefinition`, `UDataAssetAlchemyEfectDefinition`, `UDataAssetProcessingMethod`, `UDataAssetDisease`, `UDataAssetPlantPart`. Adding a new alchemy data-asset class means adding an entry to `TYPES` in the script. `DA_Herb_Mint` is a `UPlantItemDefinition` and is **not** covered — its vault note is hand-maintained.
+
+A successful run writes `.sync-state.json` into the vault. `Tools/vault_check.py` reads it to detect when the vault has fallen behind the editor.
+
+## Staying in sync
+
+Four stores hold project state and they drift independently: **code** (`Source/`), **data assets** (`Content/.../DataAssets/`, binary), the **design vault** (outside this repo), and the **OpenWolf logs** (`.wolf/`).
+
+```
+python Tools/vault_check.py
+```
+
+Answers "is anything out of sync?" in under a second with no editor. Exit 0 = clean, 1 = drift. It never modifies anything. It checks four directions:
+
+1. **code → vault** — a `01 Systems/*.md` note whose `source:` file was edited after the note was written. That note is now lying about the code.
+2. **assets → vault** — a `.uasset` newer than the vault's `.sync-state.json`. Re-run the dump.
+3. **coverage** — assets with no note, and notes pointing at deleted assets.
+4. **git → OpenWolf** — commits or uncommitted work newer than the last `.wolf/memory.md` entry, i.e. work Claude has no record of.
+
+Run it at the start of a session, before a handoff, and after any solo work.
+
+Two slash commands wrap the workflows: **`/catchup`** (start of session — reconstruct unlogged work and repair drift) and **`/handoff`** (end of session — write the record and verify clean).
+
+Full process documentation for all three development modes (solo / assisted / full-Claude) is in [WORKFLOW.md](WORKFLOW.md).
 
 ## Module Dependencies
 

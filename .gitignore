@@ -374,3 +374,5 @@ Content/Variant_SideScrolling/
 Content/Village/
 Content/Stylized_Spruce_Forest/
 Content/Stylized_PBR_Nature/
+# Claude Code personal overrides (machine-specific paths)
+.claude/settings.local.json
