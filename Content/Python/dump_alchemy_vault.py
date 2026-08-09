@@ -116,6 +116,14 @@ def fmt_tag_container(container):
     return [text] if text and text != "None" else []
 
 
+def is_tag(value):
+    return type(value).__name__ == "GameplayTag"
+
+
+def is_tag_container(value):
+    return type(value).__name__ == "GameplayTagContainer"
+
+
 def fmt_color(color):
     if color is None:
         return ""
@@ -178,9 +186,15 @@ def extract(obj, cls_name, keys):
         if key in ("BaseEffects", "Substances", "TreatmentRequirements"):
             continue  # arrays of structs -> rendered as tables, not frontmatter
 
-        if key.endswith("Tag"):
+        # Dispatch on the VALUE's type first, falling back to the key name only when the value is
+        # None (a null container must still render as [], not ""). Name-only dispatch used to miss
+        # AcceptedToolActions — it ends in "Actions", not "Tags" — and fell through to str(raw),
+        # which emits a struct repr containing a MEMORY ADDRESS. That changes every run, so every
+        # dump produced a spurious diff and broke the "safe to regenerate" contract.
+        if is_tag(raw) or (raw is None and key.endswith("Tag")):
             data[key] = fmt_tag(raw)
-        elif key.endswith("Tags") or key in ("Properties", "Symptoms", "RelevantNutrients"):
+        elif is_tag_container(raw) or (raw is None and (
+                key.endswith("Tags") or key in ("Properties", "Symptoms", "RelevantNutrients"))):
             data[key] = fmt_tag_container(raw)
         elif key == "ColorHint":
             data[key] = fmt_color(raw)
