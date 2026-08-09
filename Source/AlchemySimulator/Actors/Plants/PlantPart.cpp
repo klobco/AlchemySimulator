@@ -121,19 +121,11 @@ void APlantPart::HandleClicked(UPrimitiveComponent* Component, FKey ButtonPresse
 
 bool APlantPart::CanAcceptToolAction_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, UPrimitiveComponent* HitComponent) const
 {
+	// HerbStatus is actor state, so it stays here. Everything else is part data and lives on the
+	// definition, where ABasePlant reads the same rule — see UDataAssetPlantPart::AcceptsToolAction.
 	if (HerbStatus != EHerbStatus::OnTable) return false;
 
-	// Which tools reach this part is a property of the part itself, not of the actor.
-	if (!Item || !Item->AcceptedToolActions.HasTag(Action.ActionTag)) return false;
-
-	// Processing actions are additionally gated by the plant part's own data.
-	if (Action.ProcessingMethod)
-	{
-		if (!Item || !Item->bCanBeProcessed) return false;
-		if (!Item->AllowedProcessingTags.HasTag(Action.ProcessingMethod->ProcessingTag)) return false;
-	}
-
-	return true;
+	return Item && Item->AcceptsToolAction(Action);
 }
 
 void APlantPart::ApplyToolActionResult_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, const FMinigameResult& Result, UPrimitiveComponent* HitComponent)

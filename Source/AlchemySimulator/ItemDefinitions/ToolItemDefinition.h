@@ -44,4 +44,8 @@ public:
      */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Actions")
     TArray<FToolAction> Actions;
+
+#if WITH_EDITOR
+    virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
 };

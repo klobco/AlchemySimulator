@@ -7,6 +7,7 @@
 #include "Components/Inventory/InventoryComponent.h"
 #include "Actors/Tools/BaseTool.h"
 #include "ItemDefinitions/PlantItemDefinition.h"
+#include "DataAssets/DataAssetPlantPart.h"
 #include "DrawDebugHelpers.h"
 #include "Actors/Stations/BasicWorkbench.h"
 #include "ItemMetadata.h"
@@ -277,9 +278,10 @@ bool ABasePlant::CanAcceptToolAction_Implementation(UToolItemDefinition* Tool, c
 	if (!Row || !Item->HarvestableParts.IsValidIndex(*Row)) return false;
 
 	// Which tools reach this part is the part's own data, not the plant's — so one species can
-	// need a knife for its flower and pliers for its spines.
+	// need a knife for its flower and pliers for its spines. Same gate APlantPart uses, so the
+	// harvest moment and the on-the-table moment can never drift apart.
 	const UDataAssetPlantPart* PartDef = Item->HarvestableParts[*Row].PlantPartDefinition;
-	return PartDef && PartDef->AcceptedToolActions.HasTag(Action.ActionTag);
+	return PartDef && PartDef->AcceptsToolAction(Action);
 }
 
 void ABasePlant::ApplyToolActionResult_Implementation(UToolItemDefinition* Tool, const FToolAction& Action, const FMinigameResult& Result, UPrimitiveComponent* HitComponent)

@@ -50,4 +50,22 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Alchemy")
 	FGameplayTagContainer AllowedProcessingTags;
+
+	/**
+	 * The single gate for "may this tool action be performed on this part?".
+	 *
+	 * Two conditions, both authored on this asset: the verb must be in AcceptedToolActions, and
+	 * if the action carries a processing method, that method's tag must be in AllowedProcessingTags.
+	 * Both ABasePlant (harvesting off the growing plant) and APlantPart (working a part on the
+	 * table) call this, so the two moments can never drift apart.
+	 *
+	 * ToolAction.* is a verb ("crush this") and Processing.* is the state that results
+	 * ("crushed"), which is why they are two containers and not one.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Tool")
+	bool AcceptsToolAction(const FToolAction& Action) const;
+
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
 };
