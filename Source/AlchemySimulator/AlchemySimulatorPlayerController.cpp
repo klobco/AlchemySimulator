@@ -27,6 +27,7 @@
 #include "Widgets/Menu/BaseGameWidget.h"
 #include "Widgets/WidgetStackManager.h"
 #include "DrawDebugHelpers.h"
+#include "Characters/NPCCharacter.h"
 #include "Widgets/Menu/CharacterScreenWidget.h"
 #include "Components/PrimitiveComponent.h"
 #include "Framework/Application/SlateApplication.h"
@@ -160,6 +161,11 @@ void AAlchemySimulatorPlayerController::DoInteract()
 				Interacting = true;
 				SetupStationController(station);
 				IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
+			}
+			else if (ANPCCharacter* NPC = Cast<ANPCCharacter>(CurrentTarget.GetObject()))
+			{
+				//TODO : Add interaction with NPCs (turn off camera rotation, enable mouse input for the dialogue widget, etc.)
+				IInteractable::Execute_Interact(NPC, GetPawn());
 			}
 			else
 			{

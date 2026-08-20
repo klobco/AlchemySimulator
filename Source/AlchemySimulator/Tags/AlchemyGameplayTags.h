@@ -1,0 +1,5 @@
+#pragma once
+#include "NativeGameplayTags.h"
+
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Dialogue_Event_Start);
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Dialogue_Event_End);

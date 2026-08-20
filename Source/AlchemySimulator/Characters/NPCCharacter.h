@@ -36,12 +36,18 @@ public:
     FText DisplayName;
 
     /** Whoever is currently talking to us. Null when idle. */
-    UPROPERTY(BlueprintReadOnly, Category="Dialogue")
+    UPROPERTY(EditAnywhere, Category="Dialogue")
     TObjectPtr<APawn> CurrentInteractor = nullptr;
 
     /** Releases the conversation lock taken by Interact. No-op unless By holds it. */
     UFUNCTION(BlueprintCallable, Category="Dialogue")
     void EndInteraction(APawn* By);
+
+	UFUNCTION(BlueprintCallable, Category="Dialogue")
+	void BeginConversation(APawn* With);
+
+	UFUNCTION(BlueprintCallable, Category="Dialogue")
+	void EndConversation();
 
 	virtual FText   GetInteractPrompt_Implementation() const override;
 	virtual FVector GetInteractWorldLocation_Implementation() const override;

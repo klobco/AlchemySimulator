@@ -8,6 +8,7 @@
 #include "Components/Disease/PatientConditionComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Controllers/AlchemyNPCConroller.h"
+#include "Tags/AlchemyGameplayTags.h"
 
 // Sets default values
 ANPCCharacter::ANPCCharacter()
@@ -15,7 +16,7 @@ ANPCCharacter::ANPCCharacter()
  	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
 
-    bUseControllerRotationYaw = false;
+    bUseControllerRotationYaw = true;
 
     GetCharacterMovement()->bOrientRotationToMovement = true;
 
@@ -52,6 +53,7 @@ void ANPCCharacter::Interact_Implementation(APawn* By)
 {
     CurrentInteractor = By;
     UE_LOG(LogTemp, Warning, TEXT("%s: Hi, I'm %s"), *GetName(), *DisplayName.ToString());
+    BeginConversation(By);
 }
 
 void ANPCCharacter::EndInteraction(APawn* By)
@@ -60,6 +62,25 @@ void ANPCCharacter::EndInteraction(APawn* By)
     if (CurrentInteractor == By)
     {
         CurrentInteractor = nullptr;
+    }
+}
+
+void ANPCCharacter::BeginConversation(APawn* With)
+{
+    CurrentInteractor = With;
+    GetCharacterMovement()->StopMovementImmediately();
+    if (AAlchemyNPCConroller* AC = Cast<AAlchemyNPCConroller>(GetController()))
+    {
+        AC->SendBrainEvent(TAG_Dialogue_Event_Start);
+    }
+}
+
+void ANPCCharacter::EndConversation()
+{
+    CurrentInteractor = nullptr;
+    if (AAlchemyNPCConroller* AC = Cast<AAlchemyNPCConroller>(GetController()))
+    {
+        AC->SendBrainEvent(TAG_Dialogue_Event_End);
     }
 }
 

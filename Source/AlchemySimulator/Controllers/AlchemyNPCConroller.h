@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameplayTagContainer.h"
 #include "AIController.h"
 #include "AlchemyNPCConroller.generated.h"
 
@@ -16,6 +17,9 @@ class ALCHEMYSIMULATOR_API AAlchemyNPCConroller : public AAIController
 
 public:
     AAlchemyNPCConroller();
+
+    UFUNCTION(BlueprintCallable, Category="AI")
+    void SendBrainEvent(FGameplayTag EventTag);
 	
 protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
