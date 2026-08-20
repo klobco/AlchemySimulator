@@ -13,6 +13,7 @@ class UPlantItemDefinition;
 class UDataAssetProcessingMethod;
 class UDataAssetPlantPart;
 class UDataAssetDisease;
+class UStaticMesh;
 
 USTRUCT(BlueprintType)
 struct ALCHEMYSIMULATOR_API FMinigameResult
@@ -71,6 +72,12 @@ struct ALCHEMYSIMULATOR_API FIngredientInstance
     FGameplayTagContainer InstanceTags;
 };
 
+/**
+ * One row of a plant's anatomy: which part it grows, how many, where they sit on it, and what
+ * cutting one yields. A species is fully described by a flat array of these — exactly one row
+ * should set bIsStructural. Nothing here assumes a shared plant skeleton: a plant with no leaves
+ * simply has no leaf row.
+ */
 USTRUCT(BlueprintType)
 struct ALCHEMYSIMULATOR_API FPlantPartHarvestData
 {
@@ -87,6 +94,33 @@ struct ALCHEMYSIMULATOR_API FPlantPartHarvestData
 
     UPROPERTY(EditAnywhere, BlueprintReadOnly)
     float HarvestChance = 1.0f;
+
+    /** Mesh shown on the growing plant. Falls back to PlantPartDefinition->WorldMesh if unset. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Anatomy")
+    TObjectPtr<UStaticMesh> Mesh = nullptr;
+
+    /** How many of this part the plant grows (2 leaves, 5 petals, 1 root). */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Anatomy", meta = (ClampMin = "0"))
+    int32 InstanceCount = 1;
+
+    /**
+     * Where each instance sits. A socket on the structural mesh wins; otherwise
+     * RelativeTransforms[i] is used. Sockets are the intended path — the mesh already knows where
+     * its own leaves belong, so the layout is artist-owned rather than typed in by hand.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Anatomy")
+    TArray<FName> AttachSockets;
+
+    /** Fallback placement for instances with no socket, or a mesh that cannot be edited. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Anatomy")
+    TArray<FTransform> RelativeTransforms;
+
+    /**
+     * The plant's trunk/stem/body. Cannot be cut individually — it is what remains, and is
+     * harvested automatically once every other part is gone. Exactly one row should set this.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Anatomy")
+    bool bIsStructural = false;
 };
 
 USTRUCT(BlueprintType)

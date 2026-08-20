@@ -52,8 +52,17 @@ public:
     TObjectPtr<UTexture2D> Icon = nullptr;
 
     // --- World representation (optional) ---
+    /** The actor spawned for this item in the world. Shared/generic, not per-species. */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|World")
     TSubclassOf<class AActor> WorldItem = nullptr;
+
+    /** Actor scale when spawned. A scale that suits a sprig of mint will not suit a tree stem. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|World")
+    FVector WorldScale = FVector::OneVector;
+
+    /** Rotation applied when the item is placed on a workbench table. */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|World")
+    FRotator WorldTableRotation = FRotator::ZeroRotator;
 
     // --- Categorization ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Category")

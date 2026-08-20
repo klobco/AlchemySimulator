@@ -64,11 +64,11 @@ float UInteractionDetectorComponent::ScoreCandidate(AActor* Actor, const FVector
 
 void UInteractionDetectorComponent::TickDetect()
 {
-	//UE_LOG(LogTemp, Warning, TEXT("Detect the object"));
+	UE_LOG(LogTemp, Warning, TEXT("Detect the object"));
 	APawn* PawnOwner = Cast<APawn>(GetOwner());
 	if (!PawnOwner) return;
 
-	//UE_LOG(LogTemp, Warning, TEXT("Detect the object 2"));
+	UE_LOG(LogTemp, Warning, TEXT("Detect the object 2"));
 	FVector EyeLoc; FRotator EyeRot;
 	PawnOwner->GetActorEyesViewPoint(EyeLoc, EyeRot);
 	const FVector Fwd = EyeRot.Vector();
@@ -90,20 +90,20 @@ void UInteractionDetectorComponent::TickDetect()
 		Params
 	);
 
-	//UE_LOG(LogTemp, Warning, TEXT("Detect the object 3"));
+	UE_LOG(LogTemp, Warning, TEXT("Detect the object 3"));
 
 	AActor* Best = nullptr;
 	float BestScore = -FLT_MAX;
 
 	for (const FOverlapResult& R : Hits)
 	{
-		//UE_LOG(LogTemp, Warning, TEXT("Candidates: %d"), Hits.Num());
+		UE_LOG(LogTemp, Warning, TEXT("Candidates: %d"), Hits.Num());
 		AActor* A = R.GetActor();
 		if (!A || A == PawnOwner) continue;
 
 		if (A->ActorHasTag(RequiredActorTag))
 		{
-			//UE_LOG(LogTemp, Error, TEXT("fount at least 1 interactable with correct tag"));
+			UE_LOG(LogTemp, Error, TEXT("fount at least 1 interactable with correct tag"));
 			// LOS + scoring
 			const FVector Target = (TScriptInterface<IInteractable>(A))
 				? IInteractable::Execute_GetInteractWorldLocation(A)
@@ -113,7 +113,7 @@ void UInteractionDetectorComponent::TickDetect()
 
 
 			const float S = ScoreCandidate(A, EyeLoc, Fwd);
-			//UE_LOG(LogTemp, Error, TEXT("Candidate %s has %f points"), *A->GetActorNameOrLabel(), S);
+			UE_LOG(LogTemp, Error, TEXT("Candidate %s has %f points"), *A->GetActorNameOrLabel(), S);
 			if (S > BestScore)
 			{
 				BestScore = S;
