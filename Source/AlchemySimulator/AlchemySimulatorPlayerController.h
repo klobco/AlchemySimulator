@@ -63,7 +63,7 @@ protected:
 	UPROPERTY()
 	class UInteractionDetectorComponent* Detector = nullptr;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
 	TScriptInterface<class IInteractable> CurrentTarget;
 
 	UFUNCTION()
@@ -98,7 +98,7 @@ public:
 	UPROPERTY(EditAnywhere)
 	class AInteractionCameraRig* InteractionRig;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
 	bool Interacting = false;
 
 	UFUNCTION(BlueprintCallable, Category = "Tools")
