@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "IInteractable.h"
 #include "GameFramework/Character.h"
+#include "Dialogue/NativeDialogueProvider.h"
 #include "NPCCharacter.generated.h"
 
 UCLASS()
@@ -38,6 +39,13 @@ public:
     /** Whoever is currently talking to us. Null when idle. */
     UPROPERTY(EditAnywhere, Category="Dialogue")
     TObjectPtr<APawn> CurrentInteractor = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dialogue")
+	TObjectPtr<class UDialogueDataAsset> Dialogue = nullptr;
+
+	/** Which backend plays this NPC's dialogue. Defaults to the Data Asset walker. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Dialogue")
+	TSubclassOf<UObject> DialogueProviderClass = UNativeDialogueProvider::StaticClass();
 
     /** Releases the conversation lock taken by Interact. No-op unless By holds it. */
     UFUNCTION(BlueprintCallable, Category="Dialogue")
