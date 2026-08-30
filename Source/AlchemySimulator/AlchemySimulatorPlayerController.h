@@ -139,6 +139,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UWidgetStackManager> WidgetManager;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dialogue")
+	class UDialogueRuntimeComponent* DialogueComponent = nullptr;
+
 	UPROPERTY()
 	class UMinigameManagerComponent* MinigameManager = nullptr;
 

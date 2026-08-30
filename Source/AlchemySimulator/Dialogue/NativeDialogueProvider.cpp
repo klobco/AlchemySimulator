@@ -3,6 +3,7 @@
 #include "NativeDialogueProvider.h"
 #include "DataAssets/DialogueDataAsset.h"
 #include "Subsystems/WorldStateSubsystem.h"
+#include "Characters/NPCCharacter.h"
 #include "NativeDialogueProvider.h"
 
 /** Returns true when there's no condition, and before Step 6 exists at all. */
@@ -16,8 +17,15 @@ bool UNativeDialogueProvider::PassesCondition(const FGameplayTagQuery& Q) const
 bool UNativeDialogueProvider::BeginConversation_Implementation(const FAlchemyDialogueContext& Context)
 {
     Ctx = Context;
+
+    if (!Asset && Context.Speaker)
+    {
+        Asset = Context.Speaker->Dialogue;
+    }
+
     if (!Asset || Asset->Nodes.IsEmpty()) return false;
 
+    UE_LOG(LogTemp, Warning, TEXT("Beginning conversation with NPC, using asset: %s"), *GetNameSafe(Asset));
     for (const FDialogueEntryPoint& EP : Asset->EntryPoints)
     {
         if (PassesCondition(EP.Condition) && Asset->FindNode(EP.StartNodeID))
@@ -46,6 +54,7 @@ FDialogueStep UNativeDialogueProvider::BuildStepFor(FName NodeID)
         return Step;      // never crash on bad data; Step 12's IsDataValid catches it in-editor
     }
 
+    UE_LOG(LogTemp, Warning, TEXT("Dialogue: '%s' advancing to node '%s'"), *GetNameSafe(Asset), *NodeID.ToString());
     CurrentNodeID = NodeID;
     Step.Node     = *Node;
     Step.Effects  = Node->Effects;

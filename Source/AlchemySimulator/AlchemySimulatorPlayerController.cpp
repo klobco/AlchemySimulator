@@ -30,11 +30,13 @@
 #include "Characters/NPCCharacter.h"
 #include "Widgets/Menu/CharacterScreenWidget.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/Dialogue/DialogueRuntimeComponent.h"
 #include "Framework/Application/SlateApplication.h"
 
 AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
 {
 	WidgetManager = CreateDefaultSubobject<UWidgetStackManager>(TEXT("WidgetManager"));
+	DialogueComponent = CreateDefaultSubobject<UDialogueRuntimeComponent>(TEXT("DialogueComponent"));
 	MinigameManager = CreateDefaultSubobject<UMinigameManagerComponent>(TEXT("MinigameManager"));
 }
 
@@ -165,7 +167,12 @@ void AAlchemySimulatorPlayerController::DoInteract()
 			else if (ANPCCharacter* NPC = Cast<ANPCCharacter>(CurrentTarget.GetObject()))
 			{
 				//TODO : Add interaction with NPCs (turn off camera rotation, enable mouse input for the dialogue widget, etc.)
-				IInteractable::Execute_Interact(NPC, GetPawn());
+				// UE_LOG(LogTemp, Warning, TEXT("Interacting with NPC: %s"), *NPC->GetName());
+				if (DialogueComponent->IsInDialogue())
+				{
+					DialogueComponent->EndDialogue();
+				}
+				DialogueComponent->StartDialogue(NPC, NPC->DialogueProviderClass);
 			}
 			else
 			{
