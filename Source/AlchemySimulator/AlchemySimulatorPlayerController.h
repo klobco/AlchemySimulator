@@ -193,7 +193,4 @@ protected:
 
 	UFUNCTION()
 	void HandleDialogueStarted(class ANPCCharacter* NPC);
-
-	UFUNCTION()
-	void HandleDialogueEnded(class ANPCCharacter* NPC);
 };

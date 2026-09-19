@@ -75,7 +75,9 @@ What it touches, and what it must never touch:
 - Files starting with `_` are templates and are skipped, as are `asset:` values that are a bare prefix (`DA_Substance_`).
 - Missing notes are created; nothing is ever deleted.
 
-Covered classes: `UDataAssetSubstanceDefinition`, `UDataAssetAlchemyEfectDefinition`, `UDataAssetProcessingMethod`, `UDataAssetDisease`, `UDataAssetPlantPart`. Adding a new alchemy data-asset class means adding an entry to `TYPES` in the script. `DA_Herb_Mint` is a `UPlantItemDefinition` and is **not** covered — its vault note is hand-maintained.
+Covered classes: `UDataAssetSubstanceDefinition`, `UDataAssetAlchemyEfectDefinition`, `UDataAssetProcessingMethod`, `UDataAssetDisease`, `UDataAssetPlantPart`, `UDialogueDataAsset` (added 2026-09-19 -> `08 Dialogue/`). Adding a new alchemy data-asset class means adding an entry to `TYPES` in the script.
+
+**A class missing from `TYPES` produces a false green in `vault_check.py`.** The checker compares `.uasset` mtimes against `.sync-state.json`, so running the dump clears the `assets->vault` warning for *every* asset — including ones no `TYPES` entry ever reads. If an asset class matters to design, it needs a `TYPES` entry; clearing the warning is not the same as transcribing it. `DA_Herb_Mint` is a `UPlantItemDefinition` and is **not** covered — its vault note is hand-maintained.
 
 A successful run writes `.sync-state.json` into the vault. `Tools/vault_check.py` reads it to detect when the vault has fallen behind the editor.
 

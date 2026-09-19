@@ -174,8 +174,10 @@ void AAlchemySimulatorPlayerController::DoInteract()
 				// UE_LOG(LogTemp, Warning, TEXT("Interacting with NPC: %s"), *NPC->GetName());
 				if (DialogueRuntime->IsInDialogue())
 				{
+					// Closing the widget is UDialogueWidget's job - it pops itself when
+					// OnDialogueEnded fires. Popping here too would take the widget
+					// underneath the dialogue with it.
 					DialogueRuntime->EndDialogue();
-					HandleDialogueEnded(NPC);
 				}
 				else
 				{
@@ -673,11 +675,4 @@ void AAlchemySimulatorPlayerController::HandleDialogueStarted(ANPCCharacter* NPC
 
     W->Setup(DialogueRuntime, NPC);
     PushWidget(W);
-}
-
-void AAlchemySimulatorPlayerController::HandleDialogueEnded(ANPCCharacter* NPC)
-{
-	UE_LOG(LogTemp, Warning, TEXT("Handling dialogue ended in Controller with NPC: %s"), *GetNameSafe(NPC));
-
-	PopWidget();
 }
