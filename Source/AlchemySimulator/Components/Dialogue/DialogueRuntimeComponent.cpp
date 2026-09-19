@@ -25,9 +25,7 @@ bool UDialogueRuntimeComponent::StartDialogue(ANPCCharacter* NPC, TSubclassOf<UO
         UE_LOG(LogTemp, Error, TEXT("Provider class does not implement UDialogueContentProvider interface"));
         return false;
     }
-
-	UE_LOG(LogTemp, Warning, TEXT("Starting dialogue with NPC: %s using provider class: %s"), *GetNameSafe(NPC), *GetNameSafe(ProviderClass));
-
+	
     UObject* Provider = NewObject<UObject>(this, ProviderClass);
     FAlchemyDialogueContext Ctx = { NPC, Cast<APlayerController>(GetOwner())->GetPawn(), GetWorld()->GetGameInstance()->GetSubsystem<UWorldStateSubsystem>()};
     if (!IDialogueContentProvider::Execute_BeginConversation(Provider, Ctx)) {

@@ -139,9 +139,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UWidgetStackManager> WidgetManager;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dialogue")
-	class UDialogueRuntimeComponent* DialogueComponent = nullptr;
-
 	UPROPERTY()
 	class UMinigameManagerComponent* MinigameManager = nullptr;
 
@@ -158,6 +155,12 @@ public:
 
 	UFUNCTION()
 	void StopLeftMouseAction();
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Dialogue")
+	TObjectPtr<class UDialogueRuntimeComponent> DialogueRuntime;
+
+	UPROPERTY(EditAnywhere, Category = "UI")
+	TSubclassOf<class UDialogueWidget> DialogueWidgetClass;
 
 private:
 	void DebugClick();
@@ -185,4 +188,12 @@ private:
 
 	// Smoothed position written each tick so motion feels stable
 	FVector DragSmoothedLocation = FVector::ZeroVector;
+
+protected:
+
+	UFUNCTION()
+	void HandleDialogueStarted(class ANPCCharacter* NPC);
+
+	UFUNCTION()
+	void HandleDialogueEnded(class ANPCCharacter* NPC);
 };

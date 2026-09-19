@@ -22,6 +22,7 @@
 #include "Widgets/CustomCursorWidget.h"
 #include "Actors/Tools/BaseTool.h"
 #include "Actors/Plants/PlantPart.h"
+#include "Widgets/Dialogue/DialogueWidget.h"
 #include "ItemDefinitions/ItemDefinitionBase.h"
 #include "Components/Minigame/MinigameManagerComponent.h"
 #include "Widgets/Menu/BaseGameWidget.h"
@@ -36,7 +37,7 @@
 AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
 {
 	WidgetManager = CreateDefaultSubobject<UWidgetStackManager>(TEXT("WidgetManager"));
-	DialogueComponent = CreateDefaultSubobject<UDialogueRuntimeComponent>(TEXT("DialogueComponent"));
+	DialogueRuntime = CreateDefaultSubobject<UDialogueRuntimeComponent>(TEXT("DialogueRuntime"));
 	MinigameManager = CreateDefaultSubobject<UMinigameManagerComponent>(TEXT("MinigameManager"));
 }
 
@@ -83,6 +84,9 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 			UE_LOG(LogAlchemySimulator, Error, TEXT("Could not spawn mobile controls widget."));
 		}
 	}
+
+	DialogueRuntime->OnDialogueStarted.AddDynamic(
+    this, &AAlchemySimulatorPlayerController::HandleDialogueStarted);
 }
 
 void AAlchemySimulatorPlayerController::SetupInputComponent()
@@ -168,11 +172,15 @@ void AAlchemySimulatorPlayerController::DoInteract()
 			{
 				//TODO : Add interaction with NPCs (turn off camera rotation, enable mouse input for the dialogue widget, etc.)
 				// UE_LOG(LogTemp, Warning, TEXT("Interacting with NPC: %s"), *NPC->GetName());
-				if (DialogueComponent->IsInDialogue())
+				if (DialogueRuntime->IsInDialogue())
 				{
-					DialogueComponent->EndDialogue();
+					DialogueRuntime->EndDialogue();
+					HandleDialogueEnded(NPC);
 				}
-				DialogueComponent->StartDialogue(NPC, NPC->DialogueProviderClass);
+				else
+				{
+					DialogueRuntime->StartDialogue(NPC, NPC->DialogueProviderClass);
+				}
 			}
 			else
 			{
@@ -652,4 +660,24 @@ void AAlchemySimulatorPlayerController::StopLeftMouseAction()
 	{
 		StopWorldDrag();
 	}
+}
+
+
+void AAlchemySimulatorPlayerController::HandleDialogueStarted(ANPCCharacter* NPC)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Handling dialogue started in Controller with NPC: %s"), *GetNameSafe(NPC));
+    if (!DialogueWidgetClass) return;
+
+    UDialogueWidget* W = CreateWidget<UDialogueWidget>(this, DialogueWidgetClass);
+    if (!W) return;
+
+    W->Setup(DialogueRuntime, NPC);
+    PushWidget(W);
+}
+
+void AAlchemySimulatorPlayerController::HandleDialogueEnded(ANPCCharacter* NPC)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Handling dialogue ended in Controller with NPC: %s"), *GetNameSafe(NPC));
+
+	PopWidget();
 }
