@@ -58,6 +58,12 @@ TYPES = {
         ["DisplayName", "PlantPartTag", "BaseQuality", "bCanBeProcessed",
          "AllowedProcessingTags", "AcceptedToolActions", "Substances"],
     ),
+    "DialogueDataAsset": (
+        "08 Dialogue",
+        # Both fields are arrays of structs, so neither lands in frontmatter --
+        # they render as the Entry Points / Nodes / Options tables instead.
+        ["EntryPoints", "Nodes"],
+    ),
 }
 
 def _snake(name):
@@ -136,6 +142,81 @@ def fmt_color(color):
         return str(color)
 
 
+def fmt_tag_query(query):
+    """FGameplayTagQuery -> a short, STABLE description.
+
+    Never str() the struct: like the AcceptedToolActions case above, its repr
+    carries a memory address that changes every run and would make each dump
+    produce a spurious diff.
+
+    The design-critical fact is whether the query is empty, because an empty
+    query always passes and a non-empty one currently always fails (nothing
+    writes world state yet -- see the vault's Implementation Gaps note).
+    """
+    if query is None:
+        return ""
+    for attr in ("user_description", "auto_description"):
+        try:
+            text = str(query.get_editor_property(attr) or "").strip()
+            if text:
+                return text
+        except Exception:
+            continue
+    # No description available -- fall back to "is there a query at all".
+    for attr in ("query_token_stream", "tag_dictionary"):
+        try:
+            if len(query.get_editor_property(attr) or []) > 0:
+                return "(conditional)"
+        except Exception:
+            continue
+    return ""
+
+
+def fmt_effects(effects):
+    """FDialogueEffects -> "+Flag.A, -Flag.B, Rep.Greta +5, !Event.C".
+
+    None of these are applied yet (ApplyEffects is a no-op), but they are
+    authored design intent, so the vault should show what was written.
+    """
+    if effects is None:
+        return ""
+    parts = []
+    for attr, prefix in (("FlagsToAdd", "+"), ("FlagsToRemove", "-"),
+                         ("EventsToFire", "!")):
+        for tag in fmt_tag_container(get_prop(effects, attr)):
+            parts.append(prefix + tag)
+    try:
+        deltas = get_prop(effects, "NumberDeltas") or {}
+        for tag, value in deltas.items():
+            parts.append("{} {}{}".format(
+                fmt_tag(tag), "+" if float(value) >= 0 else "", fmt_num(value)))
+    except Exception:
+        pass
+    # sorted so two identical assets always produce identical text
+    return ", ".join(sorted(parts))
+
+
+def cell(value):
+    """Make a value safe to drop into a markdown table cell."""
+    text = "" if value is None else str(value)
+    text = text.replace("|", r"\|")      # a raw | would split the table cell
+    text = " ".join(text.split())          # collapse the MultiLine FText newlines
+    return text
+
+
+def node_ref(node_id, known):
+    """Render a NodeID reference, flagging one that points at nothing.
+
+    UDialogueDataAsset::IsDataValid validates nothing today, so a typo'd
+    TargetNodeID is editor-silent and only shows up as a conversation ending
+    early. This is the only place that surfaces it.
+    """
+    name = "" if node_id is None else str(node_id)
+    if name in ("", "None"):
+        return "_ends_"
+    return name if name in known else name + " **MISSING**"
+
+
 def asset_name(obj):
     if obj is None:
         return ""
@@ -183,7 +264,8 @@ def extract(obj, cls_name, keys):
     for key in keys:
         raw = get_prop(obj, key)
 
-        if key in ("BaseEffects", "Substances", "TreatmentRequirements"):
+        if key in ("BaseEffects", "Substances", "TreatmentRequirements",
+                   "EntryPoints", "Nodes"):
             continue  # arrays of structs -> rendered as tables, not frontmatter
 
         # Dispatch on the VALUE's type first, falling back to the key name only when the value is
@@ -238,6 +320,61 @@ def extract(obj, cls_name, keys):
         detail += table("Treatment Requirements",
                         ["Effect", "RequiredValue", "Mandatory"], rows)
 
+    if "Nodes" in keys:
+        nodes = list(get_prop(obj, "Nodes") or [])
+        known = set()
+        for node in nodes:
+            name = str(get_prop(node, "NodeID"))
+            if name and name != "None":
+                known.add(name)
+
+        rows = []
+        for entry in (get_prop(obj, "EntryPoints") or []):
+            rows.append("| {} | {} |".format(
+                cell(fmt_tag_query(get_prop(entry, "Condition"))) or "_always_",
+                node_ref(get_prop(entry, "StartNodeID"), known),
+            ))
+        detail += table("Entry Points", ["Condition", "StartNodeID"], rows)
+
+        rows = []
+        option_rows = []
+        for node in nodes:
+            node_id = str(get_prop(node, "NodeID"))
+            options = list(get_prop(node, "Options") or [])
+            rows.append("| {} | {} | {} | {} | {} | {} |".format(
+                cell(node_id),
+                cell(fmt_tag(get_prop(node, "SpeakerTag"))) or "_unset_",
+                cell(get_prop(node, "Line")),
+                cell(fmt_tag_query(get_prop(node, "Condition"))) or "_always_",
+                cell(fmt_effects(get_prop(node, "Effects"))) or "-",
+                # a node with options ignores NextNodeID unless every option
+                # is filtered out, so say which one is actually in play
+                "_via options_" if options
+                else node_ref(get_prop(node, "NextNodeID"), known),
+            ))
+            for i, option in enumerate(options):
+                ends = bool(get_prop(option, "bEndsDialogue"))
+                target = node_ref(get_prop(option, "TargetNodeID"), known)
+                # SelectOption short-circuits on bEndsDialogue BEFORE it reads
+                # TargetNodeID, so authoring both makes the target unreachable.
+                if ends and target != "_ends_":
+                    target = "~~{}~~ **ignored**".format(target)
+                option_rows.append("| {} | {} | {} | {} | {} | {} | {} |".format(
+                    cell(node_id), i,
+                    cell(get_prop(option, "Text")),
+                    target,
+                    cell(fmt_tag_query(get_prop(option, "Condition"))) or "_always_",
+                    "true" if ends else "false",
+                    cell(fmt_effects(get_prop(option, "Effects"))) or "-",
+                ))
+
+        detail += table("Nodes",
+                        ["NodeID", "Speaker", "Line", "Condition", "Effects",
+                         "Next"], rows)
+        detail += table("Options",
+                        ["Node", "#", "Text", "Target", "Condition",
+                         "EndsDialogue", "Effects"], option_rows)
+
     return data, detail
 
 
@@ -265,7 +402,8 @@ def pretty(asset):
     """
     name = asset
     for prefix in ("DA_Substance_", "DA_Effect_", "DA_Processing_",
-                   "DA_Disease_", "DA_Herb_", "DA_Tool_", "DA_Tools_", "DA_"):
+                   "DA_Disease_", "DA_Herb_", "DA_Dialogue_", "DA_Tool_",
+                   "DA_Tools_", "DA_"):
         if name.startswith(prefix):
             name = name[len(prefix):]
             break

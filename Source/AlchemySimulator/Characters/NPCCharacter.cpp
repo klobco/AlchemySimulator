@@ -59,6 +59,7 @@ void ANPCCharacter::Interact_Implementation(APawn* By)
 void ANPCCharacter::EndInteraction(APawn* By)
 {
     // Only the pawn holding the conversation may release it.
+
     if (CurrentInteractor == By)
     {
         CurrentInteractor = nullptr;
@@ -68,6 +69,8 @@ void ANPCCharacter::EndInteraction(APawn* By)
 void ANPCCharacter::BeginConversation(APawn* With)
 {
     CurrentInteractor = With;
+
+    
     GetCharacterMovement()->StopMovementImmediately();
     if (AAlchemyNPCConroller* AC = Cast<AAlchemyNPCConroller>(GetController()))
     {

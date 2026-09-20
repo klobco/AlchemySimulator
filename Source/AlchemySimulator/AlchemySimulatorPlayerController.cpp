@@ -22,6 +22,7 @@
 #include "Widgets/CustomCursorWidget.h"
 #include "Actors/Tools/BaseTool.h"
 #include "Actors/Plants/PlantPart.h"
+#include "Widgets/Dialogue/DialogueWidget.h"
 #include "ItemDefinitions/ItemDefinitionBase.h"
 #include "Components/Minigame/MinigameManagerComponent.h"
 #include "Widgets/Menu/BaseGameWidget.h"
@@ -30,11 +31,13 @@
 #include "Characters/NPCCharacter.h"
 #include "Widgets/Menu/CharacterScreenWidget.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/Dialogue/DialogueRuntimeComponent.h"
 #include "Framework/Application/SlateApplication.h"
 
 AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
 {
 	WidgetManager = CreateDefaultSubobject<UWidgetStackManager>(TEXT("WidgetManager"));
+	DialogueRuntime = CreateDefaultSubobject<UDialogueRuntimeComponent>(TEXT("DialogueRuntime"));
 	MinigameManager = CreateDefaultSubobject<UMinigameManagerComponent>(TEXT("MinigameManager"));
 }
 
@@ -81,6 +84,9 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 			UE_LOG(LogAlchemySimulator, Error, TEXT("Could not spawn mobile controls widget."));
 		}
 	}
+
+	DialogueRuntime->OnDialogueStarted.AddDynamic(
+    this, &AAlchemySimulatorPlayerController::HandleDialogueStarted);
 }
 
 void AAlchemySimulatorPlayerController::SetupInputComponent()
@@ -164,8 +170,10 @@ void AAlchemySimulatorPlayerController::DoInteract()
 			}
 			else if (ANPCCharacter* NPC = Cast<ANPCCharacter>(CurrentTarget.GetObject()))
 			{
-				//TODO : Add interaction with NPCs (turn off camera rotation, enable mouse input for the dialogue widget, etc.)
-				IInteractable::Execute_Interact(NPC, GetPawn());
+				// Starting only. UDialogueWidget is modal, so once it is up this
+				// action cannot fire again - ending the conversation is the widget's
+				// own exit key. StartDialogue self-guards on IsInDialogue().
+				DialogueRuntime->StartDialogue(NPC, NPC->DialogueProviderClass);
 			}
 			else
 			{
@@ -247,6 +255,23 @@ void AAlchemySimulatorPlayerController::RefreshInputMode()
 	// 2. The top-most stack widget owns click priority.
 	if (UBaseGameWidget* Top = WidgetManager->GetTopWidget())
 	{
+		// A modal widget owns the keyboard outright. GameAndUI leaves every
+		// Enhanced Input action live (Jump, Interact and Back are not covered
+		// by the ignore counters) and lets Slate move focus off the widget the
+		// moment anything else is clicked, which strands its key handling.
+		if (Top->IsModal())
+		{
+			FInputModeUIOnly Mode;
+			Mode.SetWidgetToFocus(Top->TakeWidget());
+			SetInputMode(Mode);
+			bShowMouseCursor = true;
+			bEnableMouseOverEvents = true;
+			bEnableClickEvents = true;
+			SetIgnoreLookInput(bSuppressPawnInput);
+			SetIgnoreMoveInput(bSuppressPawnInput);
+			return;
+		}
+
 		FInputModeGameAndUI Mode;
 		Mode.SetWidgetToFocus(Top->TakeWidget());
 		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -645,4 +670,17 @@ void AAlchemySimulatorPlayerController::StopLeftMouseAction()
 	{
 		StopWorldDrag();
 	}
+}
+
+
+void AAlchemySimulatorPlayerController::HandleDialogueStarted(ANPCCharacter* NPC)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Handling dialogue started in Controller with NPC: %s"), *GetNameSafe(NPC));
+    if (!DialogueWidgetClass) return;
+
+    UDialogueWidget* W = CreateWidget<UDialogueWidget>(this, DialogueWidgetClass);
+    if (!W) return;
+
+    W->Setup(DialogueRuntime, NPC);
+    PushWidget(W);
 }

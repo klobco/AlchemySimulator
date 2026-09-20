@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
-#include "DIalogue/AlchemyDialogueTypes.h"
+#include "Dialogue/AlchemyDialogueTypes.h"
 #include "DialogueDataAsset.generated.h"
 
 /**

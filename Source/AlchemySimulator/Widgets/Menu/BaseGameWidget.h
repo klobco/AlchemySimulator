@@ -42,4 +42,17 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Widget Stack")
 	bool CanClose() const;
 	virtual bool CanClose_Implementation() const { return true; }
+
+	/**
+	 * Return true for a screen that owns the keyboard and mouse completely.
+	 *
+	 * While this is the top widget, RefreshInputMode puts the game in
+	 * FInputModeUIOnly, so NO Enhanced Input action reaches the game - not
+	 * move, look, jump, interact or back. A modal widget must therefore
+	 * handle its own exit key in NativeOnKeyDown, or the player is stuck
+	 * in it with no way out.
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Widget Stack")
+	bool IsModal() const;
+	virtual bool IsModal_Implementation() const { return false; }
 };
