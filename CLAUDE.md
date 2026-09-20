@@ -217,7 +217,9 @@ Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (
 ### Input Mode Management (single source of truth)
 `AAlchemySimulatorPlayerController::RefreshInputMode()` is the **only** place that may call `SetInputMode`. It *derives* the mode from current state instead of having callers push one, in strict priority order:
 1. **Active minigame** (`UMinigameManagerComponent::GetActiveMinigameWidget()`) → `FInputModeUIOnly` focused on that widget — fully modal
-2. **Top stack widget** (`UWidgetStackManager::GetTopWidget()`) → `FInputModeGameAndUI` focused on that widget — the most recently opened widget owns click priority
+2. **Top stack widget** (`UWidgetStackManager::GetTopWidget()`) → the widget picks its own mode via `UBaseGameWidget::IsModal()`:
+   - `IsModal() == false` (default) → `FInputModeGameAndUI` focused on that widget — the most recently opened widget owns click priority, and the world stays clickable behind it
+   - `IsModal() == true` → `FInputModeUIOnly` focused on that widget — **no Enhanced Input action reaches the game at all**. `UDialogueWidget` is the first of these ("conversation mode")
 3. **At a station** (`Interacting == true`, no widget open) → `FInputModeGameAndUI` with no widget focus + `FSlateApplication::SetAllUserFocusToGameViewport()`, so world clicks reach table items
 4. **Plain gameplay** → `FInputModeGameOnly`, cursor hidden
 
@@ -228,6 +230,9 @@ Rules when touching this area:
 - `RefreshInputMode()` must stay **idempotent**: `SetIgnoreLookInput`/`SetIgnoreMoveInput` are counter-based in UE, so it calls `ResetIgnore*Input()` first. Without that, `CloseAll` firing N refreshes would permanently freeze the pawn
 - Always set `SetHideCursorDuringCapture(false)` on `FInputModeGameAndUI`. It defaults to `true`, which hides and re-centers the OS cursor for the whole left-click-drag gesture and freezes `DeprojectMousePositionToWorld` — this silently breaks world dragging
 - Do **not** use `EMouseCaptureMode::NoCapture` to work around cursor issues; it disables capture-based click routing and makes the first click on the viewport an OS focus-activation click (a spurious "double-click required" bug)
+- **A widget that re-grabs focus in `NativeOnFocusLost` must not have focusable children.** `SButton::OnMouseButtonDown` presses and captures but never sets focus; *Slate* then focuses the leaf-most widget under the cursor that `SupportsKeyboardFocus()` (`FSlateApplication::RoutePointerDownEvent`). If a child button wins that, the parent's re-grab fires mid-gesture and the press never becomes a click — **every click needs two presses**. This is why `DialogueOptionButton` in `WBP_DialogueOption` has **`Is Focusable` unchecked**; re-checking it brings the double-click straight back. UE 5.7 has no public `UButton::SetIsFocusable`, so this is a Blueprint checkbox, not a C++ call
+- **A modal widget (`IsModal() == true`) must handle its own exit key** in `NativeOnKeyDown`, and should return `FReply::Handled()` for everything it does not use. Under `FInputModeUIOnly` the interact and back actions never fire, so a modal screen with no exit key traps the player; and an *unhandled* key bubbles into Slate navigation, where Tab/arrows move focus onto a child button and strand the widget's own key handling
+- **`SetIgnoreMoveInput`/`SetIgnoreLookInput` do not stop `Jump`, `Interact`, `Back`, or any other Enhanced Input action** — they gate only `AddMovementInput`/`AddControllerYawInput`. There is no `RemoveMappingContext` anywhere in this project, so under `FInputModeGameAndUI` every action stays live. Blocking all game input means `FInputModeUIOnly`, i.e. `IsModal()`
 
 ## Key Conventions
 

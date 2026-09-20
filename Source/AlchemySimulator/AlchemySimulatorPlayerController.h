@@ -112,6 +112,11 @@ public:
 	 * current state rather than having callers push one, in priority order:
 	 * active minigame > top stack widget > at a station > plain gameplay.
 	 * Call this after any state change; never call SetInputMode directly.
+	 *
+	 * The top stack widget picks its own mode via UBaseGameWidget::IsModal():
+	 * a modal widget gets FInputModeUIOnly and no Enhanced Input action reaches
+	 * the game at all, so it must own its exit key; everything else gets
+	 * FInputModeGameAndUI and the world stays clickable behind it.
 	 */
 	void RefreshInputMode();
 
