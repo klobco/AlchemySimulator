@@ -64,6 +64,8 @@ float UInteractionDetectorComponent::ScoreCandidate(AActor* Actor, const FVector
 
 void UInteractionDetectorComponent::TickDetect()
 {
+	if (!bDetectionEnabled) return;
+
 	//UE_LOG(LogTemp, Warning, TEXT("Detect the object"));
 	APawn* PawnOwner = Cast<APawn>(GetOwner());
 	if (!PawnOwner) return;
@@ -166,6 +168,51 @@ void UInteractionDetectorComponent::TickDetect()
 	{
 		Current = nullptr;
 	}
+}
+
+void UInteractionDetectorComponent::SetDetectionEnabled(bool bEnabled)
+{
+	if (bDetectionEnabled == bEnabled)
+	{
+		return;
+	}
+
+	bDetectionEnabled = bEnabled;
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	if (bEnabled)
+	{
+		const float Interval = (UpdateRateHz > 0.f) ? (1.f / UpdateRateHz) : 0.1f;
+		World->GetTimerManager().SetTimer(Timer, this, &UInteractionDetectorComponent::TickDetect, Interval, true);
+		// Re-scan now rather than after a full interval, so focus is back before
+		// the player can press anything.
+		TickDetect();
+	}
+	else
+	{
+		World->GetTimerManager().ClearTimer(Timer);
+		// Leaving a target focused while not scanning would strand its highlight.
+		ClearCurrent();
+	}
+}
+
+void UInteractionDetectorComponent::ClearCurrent()
+{
+	AActor* Prev = Current.Get();
+	Current = nullptr;
+
+	if (!IsValid(Prev) || !Prev->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+	{
+		return;
+	}
+
+	OnFocusedChanged.Broadcast(nullptr, Prev);
+	IInteractable::Execute_OnFocEnd(Prev, Cast<APawn>(GetOwner()));
 }
 
 void UInteractionDetectorComponent::TryInteract(APawn* By)

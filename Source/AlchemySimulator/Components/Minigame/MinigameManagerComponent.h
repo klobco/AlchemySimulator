@@ -54,6 +54,13 @@ class ALCHEMYSIMULATOR_API UMinigameManagerComponent : public UActorComponent
 public:
 	UMinigameManagerComponent();
 
+	/**
+	 * Viewport Z-order for the active minigame. Must stay above the modal stack
+	 * (UWidgetStackManager::BaseZOrder + its depth), since a minigame is more
+	 * modal than anything on it.
+	 */
+	static constexpr int32 MinigameZOrder = 1000;
+
 protected:
 	virtual void BeginPlay() override;
 

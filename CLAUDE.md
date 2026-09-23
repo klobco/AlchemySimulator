@@ -157,7 +157,7 @@ When adding a new class, match its domain folder rather than reviving `Public/`/
 
 ### Interaction System
 - `IInteractable` — interface (BlueprintNativeEvent): `GetInteractPrompt`, `GetInteractWorldLocation`, `CanInteract`, `Interact`, `OnFocStart`, `OnFocEnd`
-- `UInteractionDetectorComponent` — sphere (220 unit radius) + line-of-sight; tracks one focused target at a time
+- `UInteractionDetectorComponent` — sphere (220 unit radius) + line-of-sight; tracks one focused target at a time. Timer-driven, and **pausable**: `SetDetectionEnabled(false)` stops the timer and drops focus properly (fires `OnFocEnd` so highlights clear). The active player mode drives this via `WantsInteractionDetector()` — do not toggle it from gameplay code
 - `AInteractionCameraRig` — repositions the camera during close interactions
 
 ### Inventory System
@@ -201,7 +201,7 @@ Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (
 ### Minigame System
 - `UAlchemyMinigameWidget` (`Widgets/Minigames/`) — base widget; exposes `OnMinigameFinished` delegate
 - `UAlchemyCutMinigameWidget` — 20-segment ring with 4 green zones; indicator moves at 0.08 s/segment tick
-- `UMinigameManagerComponent` (`Components/Minigame/`) — owns the active minigame widget lifecycle (create, show, destroy)
+- `UMinigameManagerComponent` (`Components/Minigame/`) — owns the active minigame widget lifecycle (create, show, destroy). Added at an explicit `MinigameZOrder` (1000) so it renders above the modal stack rather than relying on `CloseAll` having emptied it, and it **refuses to start under a modal widget** — `CloseAll` would otherwise pop the dialogue widget, whose `OnClosed` ends the conversation. A refusal leaves `ActiveMinigameWidget` null, which callers already treat as "action not started"
 - Minigame results (`FMinigameResult` — success/score/quality multiplier) feed into `UProcessingComponent::BuildProcessedInstance` as the `minigameQuality` input
 
 ### UI / Widget Stack
@@ -212,7 +212,34 @@ Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (
 - `UCharacterScreenWidget` (`Widgets/Menu/`) — full character screen (binds a `UInventoryWidget`); opened via `AAlchemySimulatorPlayerController::CharacterScreenWidgetClass`, same modal stack as everything else
 
 ### Player Controller
-- `AAlchemySimulatorPlayerController` — manages input mapping context, widget stack reference, drag mechanics (`UInvDragOperation`), the active tool, and now also the character screen (`CharacterScreenWidgetClass`)
+- `AAlchemySimulatorPlayerController` — manages input mapping context, the player mode stack (see "Player Modes" below), widget stack reference, drag mechanics (`UInvDragOperation`), the active tool, and the character screen (`CharacterScreenWidgetClass`)
+
+### Player Modes (`PlayerModes/`)
+What the player is *doing* — exploring, at a station, later shopping — is a **mode object on a stack**, not a set of flags on the controller. `UPlayerModeBase` declares three things and owns both halves of its own lifecycle:
+- `EnterMode()` / `ExitMode()` — strict mirrors. One object owns both, so the teardown cannot drift from the setup
+- `GetInputSpec()` → `FPlayerModeInputSpec` (`EPlayerInputModeKind` GameOnly/GameAndUI/UIOnly + cursor, pawn-input suppression, viewport focus, widget to focus). A mode **declares** what it needs; it never calls `SetInputMode`
+- `WantsInteractionDetector()` — whether `UInteractionDetectorComponent` keeps scanning for this mode
+- `MappingContexts` / `BlockedActions` / `BlockedActionsWhileUIOpen` (`EditDefaultsOnly` soft refs) — which keys are live. See "Per-mode input" below
+- `HandleBackAction()` — what Escape does in this mode, asked only when no widget is open
+
+Current modes: `UExplorationPlayerMode` (GameOnly, cursor hidden, pawn input live, detector on, Back opens the character screen) and `UStationPlayerMode` (GameAndUI, cursor, viewport focus, detector **off**, locomotion actions unmapped, Back leaves the station). Dialogue and minigames are not modes yet — they still ride on the widget stack and the minigame manager.
+
+Rules:
+- The stack is **never empty**: `BeginPlay` → `InitializePlayerModeStack()` pushes exploration, and `PopPlayerMode` refuses to pop index 0. `RefreshInputMode` therefore always has a mode to ask
+- Mutate only via `PushPlayerMode(UPlayerModeBase*)` / `PopPlayerMode(UPlayerModeBase*)`. They run `EnterMode`/`ExitMode`, then `ApplyActiveModeState()` (detector) and `RefreshInputMode()` — callers do none of that themselves. **Configure a mode fully before pushing it** (e.g. `UStationPlayerMode::Station`)
+- A mode is on the stack *before* `EnterMode` and off it *before* `ExitMode`, so anything either half triggers (widget closes, refreshes) already sees the new truth
+- **Station mode has no separate flag or pointer on the controller** — `GetCurrentStation()` reads the station off the `UStationPlayerMode` and `IsAtStation()` is `GetCurrentStation() != nullptr`. `SetupStationController`/`RemoveStationController` are thin wrappers that push/pop it, and `DoInteract`/`DoBack` only dispatch; they must not reach into camera, tilt or physics themselves
+- Adding a mode = one subclass, or a Blueprint subclass of an existing one with different input data. It must not mean a new branch in `DoInteract`, `DoBack` or `RefreshInputMode`
+- **Entering a mode can clear `CurrentTarget`** (the detector drops focus when it stops). Capture the interaction target in a local *before* pushing a mode — `DoInteract` does
+
+### Per-mode input (which keys are live)
+`AAlchemySimulatorPlayerController::ApplyModeMappingContexts()` is the **only** place that adds or removes an `UInputMappingContext` after startup — `SetupInputComponent` deliberately no longer does, or it would leave a copy no mode could remove. It runs on every mode push/pop and from `RefreshInputMode` (widget state changes what is live too), and early-outs when the active mode and UI-open flag are unchanged, so `CloseAll` firing N refreshes costs nothing.
+
+- A mode's `MappingContexts` **replace** the controller's `DefaultMappingContexts`; empty (the usual case) means "take the defaults". Name contexts only when a mode needs *different* bindings, not merely fewer
+- Removing keys is `BlockedActions`' job. The applier duplicates the context and calls `UnmapAllKeysFromAction` — **never rebuild a context with `MapKey`**, which drops the modifiers and triggers that make WASD and rotate work
+- `BlockedActionsWhileUIOpen` adds to that whenever a stack widget or a minigame is up. This is how Jump dies with the character screen open
+- **This is the only real gate on non-movement actions.** `SetIgnoreMove/LookInput` only stop `AddMovementInput`/`AddControllerYawInput`; Jump is bound straight to `ACharacter::Jump` and was live at stations and under widgets until it became mode data
+- Blocked actions are `TSoftObjectPtr<UInputAction>` and the C++ defaults hard-code `/Game/Input/Actions/IA_*` paths. A renamed or moved action asset logs `[PlayerMode] could not resolve …` and silently widens what the player can press — **grep for that warning if a key that should be dead still fires**. Override the lists on a Blueprint subclass of the mode and point `StationModeClass`/`ExplorationModeClass` at it rather than editing the paths
 
 ### Input Mode Management (single source of truth)
 `AAlchemySimulatorPlayerController::RefreshInputMode()` is the **only** place that may call `SetInputMode`. It *derives* the mode from current state instead of having callers push one, in strict priority order:
@@ -220,24 +247,24 @@ Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (
 2. **Top stack widget** (`UWidgetStackManager::GetTopWidget()`) → the widget picks its own mode via `UBaseGameWidget::IsModal()`:
    - `IsModal() == false` (default) → `FInputModeGameAndUI` focused on that widget — the most recently opened widget owns click priority, and the world stays clickable behind it
    - `IsModal() == true` → `FInputModeUIOnly` focused on that widget — **no Enhanced Input action reaches the game at all**. `UDialogueWidget` is the first of these ("conversation mode")
-3. **At a station** (`IsAtStation()`, no widget open) → `FInputModeGameAndUI` with no widget focus + `FSlateApplication::SetAllUserFocusToGameViewport()`, so world clicks reach table items
-4. **Plain gameplay** → `FInputModeGameOnly`, cursor hidden
+3. **The active player mode's `GetInputSpec()`** — station and exploration are modes, not branches here
+
+Every branch builds an `FPlayerModeInputSpec` and hands it to the one applier, `ApplyInputSpec()`; that is the only function that touches `SetInputMode`, `bShowMouseCursor`, `bEnableClickEvents` and the ignore counters.
 
 Rules when touching this area:
 - **Never call `SetInputMode`, `bShowMouseCursor`, `bEnableClickEvents`, or `SetIgnore*Input` directly** — change the underlying state, then call `RefreshInputMode()`
 - Widget-stack changes refresh automatically: `BeginPlay` binds `HandleWidgetStackChanged` to `UWidgetStackManager::OnWidgetPushed` / `OnWidgetPopped`. `CloseAll` broadcasts once per popped widget, so every stack path is covered — this is why `PushWidget`/`PopWidget` no longer contain input-mode code
-- **Station mode lives in exactly one variable: `CurrentStation`.** `IsAtStation()` is the only way to ask; there is no `Interacting` bool any more (it was a second copy of the same fact with four write sites). `SetupStationController`/`RemoveStationController` are the only writers, they own *both* halves of enter/exit — view target (`PreStationViewTarget`), rig placement, tilt, table physics, pawn mesh visibility, active tool, and the refresh — and each is a no-op when the state already matches. `DoInteract`/`DoBack` only dispatch; they must not reach into camera or tilt themselves
-- `RemoveStationController` clears `CurrentStation` *before* `CloseAll()` and the refresh, so no refresh triggered by a popping widget sees a stale station. It also ends any in-progress world drag — a drag must not outlive its workbench, or `PlayerTick` keeps moving the actor with nothing to clamp it to and its physics stays off forever
+- **A world drag only survives while the world owns the mouse.** `RefreshInputMode` ends the drag whenever a widget or minigame is up, because `LeftMouseAction` *Completed* never arrives under `FInputModeUIOnly` — without that the drag is permanent: physics stays off on `DraggedActor` and `PlayerTick` keeps moving it. `UStationPlayerMode::ExitMode` does the same for leaving the station (no workbench left to clamp to)
 - `RefreshInputMode()` must stay **idempotent**: `SetIgnoreLookInput`/`SetIgnoreMoveInput` are counter-based in UE, so it calls `ResetIgnore*Input()` first. Without that, `CloseAll` firing N refreshes would permanently freeze the pawn
 - Always set `SetHideCursorDuringCapture(false)` on `FInputModeGameAndUI`. It defaults to `true`, which hides and re-centers the OS cursor for the whole left-click-drag gesture and freezes `DeprojectMousePositionToWorld` — this silently breaks world dragging
 - Do **not** use `EMouseCaptureMode::NoCapture` to work around cursor issues; it disables capture-based click routing and makes the first click on the viewport an OS focus-activation click (a spurious "double-click required" bug)
 - **A widget that re-grabs focus in `NativeOnFocusLost` must not have focusable children.** `SButton::OnMouseButtonDown` presses and captures but never sets focus; *Slate* then focuses the leaf-most widget under the cursor that `SupportsKeyboardFocus()` (`FSlateApplication::RoutePointerDownEvent`). If a child button wins that, the parent's re-grab fires mid-gesture and the press never becomes a click — **every click needs two presses**. This is why `DialogueOptionButton` in `WBP_DialogueOption` has **`Is Focusable` unchecked**; re-checking it brings the double-click straight back. UE 5.7 has no public `UButton::SetIsFocusable`, so this is a Blueprint checkbox, not a C++ call
 - **A modal widget (`IsModal() == true`) must handle its own exit key** in `NativeOnKeyDown`, and should return `FReply::Handled()` for everything it does not use. Under `FInputModeUIOnly` the interact and back actions never fire, so a modal screen with no exit key traps the player; and an *unhandled* key bubbles into Slate navigation, where Tab/arrows move focus onto a child button and strand the widget's own key handling
-- **`SetIgnoreMoveInput`/`SetIgnoreLookInput` do not stop `Jump`, `Interact`, `Back`, or any other Enhanced Input action** — they gate only `AddMovementInput`/`AddControllerYawInput`. There is no `RemoveMappingContext` anywhere in this project, so under `FInputModeGameAndUI` every action stays live. Blocking all game input means `FInputModeUIOnly`, i.e. `IsModal()`
+- **`SetIgnoreMoveInput`/`SetIgnoreLookInput` do not stop `Jump`, `Interact`, `Back`, or any other Enhanced Input action** — they gate only `AddMovementInput`/`AddControllerYawInput`. Blocking *all* game input means `FInputModeUIOnly`, i.e. `IsModal()`; blocking *specific* actions means the mode's `BlockedActions` (see "Per-mode input"). The ignore counters are now belt-and-braces, not the gate
 
 ## Key Conventions
 
-- New non-cross-cutting classes go in a domain folder (`Actors/<X>/`, `Components/<X>/`, `Widgets/<X>/`, `DataAssets/`, `ItemDefinitions/`, `Subsystems/`, `Controllers/`, `Characters/`, `StateTree/Tasks/`) with `.h`/`.cpp` side by side — do not add new files to the old flat `Public/`/`Private/` unless the class is a dependency-free interface or shared struct file used module-wide
+- New non-cross-cutting classes go in a domain folder (`Actors/<X>/`, `Components/<X>/`, `Widgets/<X>/`, `DataAssets/`, `ItemDefinitions/`, `Subsystems/`, `Controllers/`, `Characters/`, `PlayerModes/`, `StateTree/Tasks/`) with `.h`/`.cpp` side by side — do not add new files to the old flat `Public/`/`Private/` unless the class is a dependency-free interface or shared struct file used module-wide
 - BlueprintNativeEvent is preferred for interaction/use/AI callbacks so Blueprint subclasses can override without breaking C++ defaults (`IInteractable`, `IUsebale`, `UItemDefinitionBase::CanUseItem`/`UseItem`)
 - New interactable world objects should implement `IInteractable` and register with `UInteractionDetectorComponent` via overlap
 - Item definitions are DataAssets; create them in the editor and reference via soft pointers where load timing matters

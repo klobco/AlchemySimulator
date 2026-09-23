@@ -33,12 +33,19 @@
 #include "Components/PrimitiveComponent.h"
 #include "Components/Dialogue/DialogueRuntimeComponent.h"
 #include "Framework/Application/SlateApplication.h"
+#include "PlayerModes/PlayerModeBase.h"
+#include "PlayerModes/ExplorationPlayerMode.h"
+#include "PlayerModes/StationPlayerMode.h"
+#include "InputAction.h"
 
 AAlchemySimulatorPlayerController::AAlchemySimulatorPlayerController()
 {
 	WidgetManager = CreateDefaultSubobject<UWidgetStackManager>(TEXT("WidgetManager"));
 	DialogueRuntime = CreateDefaultSubobject<UDialogueRuntimeComponent>(TEXT("DialogueRuntime"));
 	MinigameManager = CreateDefaultSubobject<UMinigameManagerComponent>(TEXT("MinigameManager"));
+
+	ExplorationModeClass = UExplorationPlayerMode::StaticClass();
+	StationModeClass = UStationPlayerMode::StaticClass();
 }
 
 void AAlchemySimulatorPlayerController::BeginPlay()
@@ -50,6 +57,9 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 	{
 		BindToDetector(GetPawn());
 	}
+
+	// Before anything can refresh the input mode: the stack must never be empty.
+	InitializePlayerModeStack();
 
 	// Input mode follows the widget stack — CloseAll broadcasts per popped widget,
 	// so every path that changes the stack refreshes the mode automatically.
@@ -93,24 +103,10 @@ void AAlchemySimulatorPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
-	if (IsLocalPlayerController())
-	{
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
-		{
-			for (UInputMappingContext* CurrentContext : DefaultMappingContexts)
-			{
-				Subsystem->AddMappingContext(CurrentContext, 0);
-			}
-
-			if (!ShouldUseTouchControls())
-			{
-				for (UInputMappingContext* CurrentContext : MobileExcludedMappingContexts)
-				{
-					Subsystem->AddMappingContext(CurrentContext, 0);
-				}
-			}
-		}
-	}
+	// Mapping contexts are not added here any more: the active player mode owns
+	// which contexts are installed, so adding them here as well would leave a
+	// copy behind that no mode can remove. BeginPlay's first PushPlayerMode
+	// installs them via ApplyModeMappingContexts.
 
 	// InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &AAlchemySimulatorPlayerController::DebugClick);
 }
@@ -135,6 +131,9 @@ void AAlchemySimulatorPlayerController::BindToDetector(APawn* InPawn)
 	{
 		Detector->OnFocusedChanged.RemoveAll(this);
 		Detector->OnFocusedChanged.AddDynamic(this, &AAlchemySimulatorPlayerController::OnFocusedChanged);
+		// A detector bound after the stack was built (a re-possess) starts
+		// enabled, which may not be what the active mode wants.
+		ApplyActiveModeState();
 	}
 }
 
@@ -161,20 +160,24 @@ void AAlchemySimulatorPlayerController::DoInteract()
 		return;
 	}
 
-	if (CurrentTarget == nullptr)
+	// Captured up front: entering a mode can switch the interaction detector off,
+	// which clears CurrentTarget mid-call. Everything below wants the target we
+	// interacted with, not whatever focus happens to be by then.
+	UObject* Target = CurrentTarget.GetObject();
+	if (Target == nullptr)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Interacting with null"));
 		return;
 	}
 
-	if (ABasicInteractableStationObject* station = Cast<ABasicInteractableStationObject>(CurrentTarget.GetObject()))
+	if (ABasicInteractableStationObject* station = Cast<ABasicInteractableStationObject>(Target))
 	{
 		// Every side effect of entering (view target, tilt, physics, mesh, input
-		// mode) belongs to SetupStationController so the exit stays a mirror.
+		// mode) belongs to the station mode, so the exit stays a mirror.
 		SetupStationController(station);
-		IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
+		IInteractable::Execute_Interact(Target, GetPawn());
 	}
-	else if (ANPCCharacter* NPC = Cast<ANPCCharacter>(CurrentTarget.GetObject()))
+	else if (ANPCCharacter* NPC = Cast<ANPCCharacter>(Target))
 	{
 		// Starting only. UDialogueWidget is modal, so once it is up this
 		// action cannot fire again - ending the conversation is the widget's
@@ -183,8 +186,240 @@ void AAlchemySimulatorPlayerController::DoInteract()
 	}
 	else
 	{
-		IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
+		IInteractable::Execute_Interact(Target, GetPawn());
 	}
+}
+
+void AAlchemySimulatorPlayerController::InitializePlayerModeStack()
+{
+	if (ModeStack.Num() > 0)
+	{
+		return;
+	}
+
+	UClass* ModeClass = ExplorationModeClass.Get();
+	if (!ModeClass)
+	{
+		ModeClass = UExplorationPlayerMode::StaticClass();
+	}
+
+	PushPlayerMode(NewObject<UExplorationPlayerMode>(this, ModeClass));
+}
+
+UPlayerModeBase* AAlchemySimulatorPlayerController::GetActivePlayerMode() const
+{
+	return ModeStack.Num() > 0 ? ModeStack.Last() : nullptr;
+}
+
+UPlayerModeBase* AAlchemySimulatorPlayerController::FindPlayerMode(TSubclassOf<UPlayerModeBase> ModeClass) const
+{
+	if (!ModeClass)
+	{
+		return nullptr;
+	}
+
+	for (int32 i = ModeStack.Num() - 1; i >= 0; --i)
+	{
+		if (ModeStack[i] && ModeStack[i]->IsA(ModeClass.Get()))
+		{
+			return ModeStack[i];
+		}
+	}
+
+	return nullptr;
+}
+
+ABasicInteractableStationObject* AAlchemySimulatorPlayerController::GetCurrentStation() const
+{
+	// The station mode *is* the station state — there is no second copy.
+	if (UStationPlayerMode* StationMode = Cast<UStationPlayerMode>(FindPlayerMode(UStationPlayerMode::StaticClass())))
+	{
+		return StationMode->Station;
+	}
+
+	return nullptr;
+}
+
+void AAlchemySimulatorPlayerController::PushPlayerMode(UPlayerModeBase* Mode)
+{
+	if (!Mode)
+	{
+		return;
+	}
+
+	Mode->OwningController = this;
+	// On the stack before EnterMode runs, so anything EnterMode triggers already
+	// sees the new mode as active.
+	ModeStack.Add(Mode);
+
+	UE_LOG(LogTemp, Warning, TEXT("[PlayerMode] push %s (depth %d)"), *Mode->GetModeName().ToString(), ModeStack.Num());
+
+	Mode->EnterMode();
+
+	ApplyActiveModeState();
+	RefreshInputMode();
+}
+
+void AAlchemySimulatorPlayerController::PopPlayerMode(UPlayerModeBase* Mode)
+{
+	if (!Mode)
+	{
+		return;
+	}
+
+	const int32 Index = ModeStack.IndexOfByKey(Mode);
+	if (Index == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Exploration is the floor: popping it would leave RefreshInputMode with
+	// nothing to ask.
+	if (Index == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[PlayerMode] refused to pop the base mode %s"), *Mode->GetModeName().ToString());
+		return;
+	}
+
+	// Off the stack before ExitMode runs — ExitMode closes widgets, and each
+	// pop refreshes the input mode, which must not still see this mode.
+	ModeStack.RemoveAt(Index);
+
+	UE_LOG(LogTemp, Warning, TEXT("[PlayerMode] pop %s (depth %d)"), *Mode->GetModeName().ToString(), ModeStack.Num());
+
+	Mode->ExitMode();
+
+	ApplyActiveModeState();
+	RefreshInputMode();
+}
+
+void AAlchemySimulatorPlayerController::ApplyActiveModeState()
+{
+	UPlayerModeBase* Active = GetActivePlayerMode();
+	if (!Active)
+	{
+		return;
+	}
+
+	// Focus detection is per-mode: at a station the detector would keep
+	// re-scoring while the player stands still and drift focus onto table items.
+	if (Detector)
+	{
+		Detector->SetDetectionEnabled(Active->WantsInteractionDetector());
+	}
+
+	ApplyModeMappingContexts();
+}
+
+void AAlchemySimulatorPlayerController::ApplyModeMappingContexts()
+{
+	if (!IsLocalPlayerController())
+	{
+		return;
+	}
+
+	UEnhancedInputLocalPlayerSubsystem* Subsystem =
+		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
+	if (!Subsystem)
+	{
+		return;
+	}
+
+	UPlayerModeBase* Active = GetActivePlayerMode();
+	if (!Active)
+	{
+		return;
+	}
+
+	// A widget or minigame owning the screen is part of what decides which keys
+	// are live, so it is part of the signature below.
+	const bool bUIOpen =
+		(MinigameManager && MinigameManager->GetActiveMinigameWidget() != nullptr) ||
+		(WidgetManager && WidgetManager->HasOpenWidgets());
+
+	// CloseAll refreshes once per popped widget; without this the whole set
+	// would be torn down and rebuilt each time.
+	if (Active == LastMappingMode && bUIOpen == bLastMappingUIOpen && AppliedMappingContexts.Num() > 0)
+	{
+		return;
+	}
+	LastMappingMode = Active;
+	bLastMappingUIOpen = bUIOpen;
+
+	for (UInputMappingContext* Applied : AppliedMappingContexts)
+	{
+		if (Applied)
+		{
+			Subsystem->RemoveMappingContext(Applied);
+		}
+	}
+	AppliedMappingContexts.Reset();
+
+	// A mode names contexts only when it needs different bindings; otherwise it
+	// takes the controller's default set.
+	TArray<const UInputMappingContext*> SourceContexts;
+	Active->GetMappingContexts(SourceContexts);
+	if (SourceContexts.Num() == 0)
+	{
+		for (UInputMappingContext* Context : DefaultMappingContexts)
+		{
+			if (Context)
+			{
+				SourceContexts.Add(Context);
+			}
+		}
+
+		if (!ShouldUseTouchControls())
+		{
+			for (UInputMappingContext* Context : MobileExcludedMappingContexts)
+			{
+				if (Context)
+				{
+					SourceContexts.Add(Context);
+				}
+			}
+		}
+	}
+
+	TArray<const UInputAction*> BlockedActions;
+	Active->GetBlockedActions(bUIOpen, BlockedActions);
+
+	for (const UInputMappingContext* Source : SourceContexts)
+	{
+		UInputMappingContext* ToInstall = const_cast<UInputMappingContext*>(Source);
+
+		// Does this context actually map anything we are blocking? Most do not,
+		// and an untouched context is installed as-is.
+		bool bNeedsFiltering = false;
+		for (const FEnhancedActionKeyMapping& Mapping : Source->GetMappings())
+		{
+			if (BlockedActions.Contains(Mapping.Action))
+			{
+				bNeedsFiltering = true;
+				break;
+			}
+		}
+
+		if (bNeedsFiltering)
+		{
+			// Duplicate and unmap rather than rebuild mapping-by-mapping:
+			// MapKey would drop the modifiers and triggers (WASD swizzle/negate,
+			// rotate negation) that make the bindings work.
+			UInputMappingContext* Filtered = DuplicateObject<UInputMappingContext>(Source, this);
+			for (const UInputAction* Blocked : BlockedActions)
+			{
+				Filtered->UnmapAllKeysFromAction(Blocked);
+			}
+			ToInstall = Filtered;
+		}
+
+		Subsystem->AddMappingContext(ToInstall, Active->MappingPriority);
+		AppliedMappingContexts.Add(ToInstall);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[PlayerMode] contexts for %s: %d installed, %d action(s) blocked (UI open: %s)"),
+		*Active->GetModeName().ToString(), AppliedMappingContexts.Num(), BlockedActions.Num(),
+		bUIOpen ? TEXT("yes") : TEXT("no"));
 }
 
 void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractableStationObject* station)
@@ -194,39 +429,16 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 		return;
 	}
 
-	CurrentStation = station;
-
-	// Camera: frame the station and remember where to blend back to.
-	PreStationViewTarget = GetViewTarget();
-	if (InteractionRig && station->InteractionViewPoint)
+	UClass* ModeClass = StationModeClass.Get();
+	if (!ModeClass)
 	{
-		InteractionRig->SetActorLocation(station->InteractionViewPoint->GetComponentLocation());
-		InteractionRig->SetActorRotation(station->InteractionViewPoint->GetComponentRotation());
-		SetViewTargetWithBlend(InteractionRig, 0.35f);
-		InteractionRig->EnableTilt();
+		ModeClass = UStationPlayerMode::StaticClass();
 	}
 
-	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(CurrentStation))
-	{
-		for (AActor* plant : bench->HerbsOnTable) {
-
-			if (ABasePlant* basePlant = Cast<ABasePlant>(plant))
-			{
-				basePlant->Body->SetSimulatePhysics(true);
-			}
-			 if (APlantPart* plantPart = Cast<APlantPart>(plant))
-			 {
-				 plantPart->Body->SetSimulatePhysics(true);
-			 }
-		}
-	}
-
-	if (AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(GetPawn()))
-	{
-		AlchemyChar->GetMesh()->SetHiddenInGame(true, true);
-	}
-
-	RefreshInputMode();
+	UStationPlayerMode* Mode = NewObject<UStationPlayerMode>(this, ModeClass);
+	// Configure before pushing — EnterMode needs the station.
+	Mode->Station = station;
+	PushPlayerMode(Mode);
 }
 
 void AAlchemySimulatorPlayerController::HandleWidgetStackChanged(UBaseGameWidget* Widget)
@@ -236,143 +448,124 @@ void AAlchemySimulatorPlayerController::HandleWidgetStackChanged(UBaseGameWidget
 
 void AAlchemySimulatorPlayerController::RefreshInputMode()
 {
+	UUserWidget* ActiveMinigame = MinigameManager ? MinigameManager->GetActiveMinigameWidget() : nullptr;
+	UBaseGameWidget* TopWidget = WidgetManager ? WidgetManager->GetTopWidget() : nullptr;
+
+	// A world drag is only tenable while the world owns the mouse. Under a
+	// widget or a minigame the LeftMouseAction Completed event never arrives, so
+	// the drag would never end: physics stays off on DraggedActor and PlayerTick
+	// keeps moving it for the rest of the session.
+	if (bIsDraggingWorldActor && (ActiveMinigame || TopWidget))
+	{
+		StopWorldDrag();
+	}
+
+	// Which keys are live depends on the mode *and* on whether UI owns the
+	// screen, so it is refreshed here too, not only on mode changes. Free when
+	// nothing has changed.
+	ApplyModeMappingContexts();
+
+	// 1. A minigame is fully modal.
+	if (ActiveMinigame)
+	{
+		FPlayerModeInputSpec Spec;
+		Spec.Kind = EPlayerInputModeKind::UIOnly;
+		Spec.bShowCursor = true;
+		Spec.WidgetToFocus = ActiveMinigame;
+		ApplyInputSpec(Spec);
+		return;
+	}
+
+	// 2. The top-most stack widget owns click priority.
+	if (TopWidget)
+	{
+		FPlayerModeInputSpec Spec;
+		// A modal widget owns the keyboard outright. GameAndUI leaves every
+		// Enhanced Input action live (Jump, Interact and Back are not covered
+		// by the ignore counters) and lets Slate move focus off the widget the
+		// moment anything else is clicked, which strands its key handling.
+		Spec.Kind = TopWidget->IsModal() ? EPlayerInputModeKind::UIOnly : EPlayerInputModeKind::GameAndUI;
+		Spec.bShowCursor = true;
+		Spec.WidgetToFocus = TopWidget;
+		ApplyInputSpec(Spec);
+		return;
+	}
+
+	// 3. Whatever the active player mode asks for. Station and exploration are
+	// modes now, not branches; the stack is never empty after BeginPlay.
+	if (UPlayerModeBase* ActiveMode = GetActivePlayerMode())
+	{
+		ApplyInputSpec(ActiveMode->GetInputSpec());
+		return;
+	}
+
+	// Only reachable before the stack is initialised.
+	ApplyInputSpec(FPlayerModeInputSpec());
+}
+
+void AAlchemySimulatorPlayerController::ApplyInputSpec(const FPlayerModeInputSpec& Spec)
+{
 	// SetIgnore*Input is counter-based, so reset first — otherwise repeated
 	// refreshes (CloseAll broadcasts once per widget) would stack the counters.
 	ResetIgnoreLookInput();
 	ResetIgnoreMoveInput();
 
-	// Pawn look/move is suppressed in every context except plain gameplay.
-	const bool bSuppressPawnInput = true;
-
-	// 1. A minigame is fully modal.
-	if (MinigameManager && MinigameManager->GetActiveMinigameWidget())
+	switch (Spec.Kind)
+	{
+	case EPlayerInputModeKind::UIOnly:
 	{
 		FInputModeUIOnly Mode;
-		Mode.SetWidgetToFocus(MinigameManager->GetActiveMinigameWidget()->TakeWidget());
-		SetInputMode(Mode);
-		bShowMouseCursor = true;
-		bEnableMouseOverEvents = true;
-		bEnableClickEvents = true;
-		SetIgnoreLookInput(bSuppressPawnInput);
-		SetIgnoreMoveInput(bSuppressPawnInput);
-		return;
-	}
-
-	// 2. The top-most stack widget owns click priority.
-	if (UBaseGameWidget* Top = WidgetManager->GetTopWidget())
-	{
-		// A modal widget owns the keyboard outright. GameAndUI leaves every
-		// Enhanced Input action live (Jump, Interact and Back are not covered
-		// by the ignore counters) and lets Slate move focus off the widget the
-		// moment anything else is clicked, which strands its key handling.
-		if (Top->IsModal())
+		if (UUserWidget* Focus = Spec.WidgetToFocus.Get())
 		{
-			FInputModeUIOnly Mode;
-			Mode.SetWidgetToFocus(Top->TakeWidget());
-			SetInputMode(Mode);
-			bShowMouseCursor = true;
-			bEnableMouseOverEvents = true;
-			bEnableClickEvents = true;
-			SetIgnoreLookInput(bSuppressPawnInput);
-			SetIgnoreMoveInput(bSuppressPawnInput);
-			return;
+			Mode.SetWidgetToFocus(Focus->TakeWidget());
 		}
-
-		FInputModeGameAndUI Mode;
-		Mode.SetWidgetToFocus(Top->TakeWidget());
-		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-		Mode.SetHideCursorDuringCapture(false);
 		SetInputMode(Mode);
-		bShowMouseCursor = true;
-		bEnableMouseOverEvents = true;
-		bEnableClickEvents = true;
-		SetIgnoreLookInput(bSuppressPawnInput);
-		SetIgnoreMoveInput(bSuppressPawnInput);
-		return;
+		break;
 	}
 
-	// 3. At a station with no widget open — world clicks go to table items.
-	if (IsAtStation())
+	case EPlayerInputModeKind::GameAndUI:
 	{
 		FInputModeGameAndUI Mode;
+		if (UUserWidget* Focus = Spec.WidgetToFocus.Get())
+		{
+			Mode.SetWidgetToFocus(Focus->TakeWidget());
+		}
 		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		// Defaults to true, which hides and re-centers the OS cursor for the
+		// whole click-drag gesture and freezes DeprojectMousePositionToWorld.
 		Mode.SetHideCursorDuringCapture(false);
 		SetInputMode(Mode);
-		bShowMouseCursor = true;
-		bEnableMouseOverEvents = true;
-		bEnableClickEvents = true;
-		SetIgnoreLookInput(bSuppressPawnInput);
-		SetIgnoreMoveInput(bSuppressPawnInput);
-		// No widget to focus, so focus the viewport itself or the first click is eaten.
-		FSlateApplication::Get().SetAllUserFocusToGameViewport();
-		return;
+		break;
 	}
 
-	// 4. Plain gameplay — pawn input restored by the resets above.
-	FInputModeGameOnly Mode;
-	Mode.SetConsumeCaptureMouseDown(false);
-	SetInputMode(Mode);
-	bShowMouseCursor = false;
-	bEnableMouseOverEvents = false;
-	bEnableClickEvents = false;
+	case EPlayerInputModeKind::GameOnly:
+	default:
+	{
+		FInputModeGameOnly Mode;
+		Mode.SetConsumeCaptureMouseDown(false);
+		SetInputMode(Mode);
+		break;
+	}
+	}
+
+	bShowMouseCursor = Spec.bShowCursor;
+	bEnableMouseOverEvents = Spec.bShowCursor;
+	bEnableClickEvents = Spec.bShowCursor;
+
+	SetIgnoreLookInput(Spec.bSuppressPawnInput);
+	SetIgnoreMoveInput(Spec.bSuppressPawnInput);
+
+	if (Spec.bFocusGameViewport && !Spec.WidgetToFocus.IsValid())
+	{
+		// With nothing focused, Slate eats the first world click as a focus change.
+		FSlateApplication::Get().SetAllUserFocusToGameViewport();
+	}
 }
 
 void AAlchemySimulatorPlayerController::RemoveStationController()
 {
-	if (!IsAtStation())
-	{
-		return;
-	}
-
-	// A drag must not outlive the station it started at: PlayerTick would keep
-	// moving DraggedActor with no workbench left to clamp it to, and its physics
-	// would stay disabled forever.
-	if (bIsDraggingWorldActor)
-	{
-		StopWorldDrag();
-	}
-
-	// Still needs CurrentStation, so it runs before the clear below.
-	ResetActiveTool();
-
-	ABasicInteractableStationObject* Station = CurrentStation;
-	// Cleared first, so every RefreshInputMode triggered from here on — CloseAll
-	// broadcasts once per popped widget — already sees us out of station mode.
-	CurrentStation = nullptr;
-
-	WidgetManager->CloseAll();
-
-	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(Station))
-	{
-		for (AActor* plant : bench->HerbsOnTable) {
-			if (ABasePlant* basePlant = Cast<ABasePlant>(plant))
-			{
-				basePlant->Body->SetSimulatePhysics(false);
-			}
-			if (APlantPart* plantPart = Cast<APlantPart>(plant))
-			{
-				plantPart->Body->SetSimulatePhysics(false);
-			}
-		}
-	}
-
-	if (AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(GetPawn()))
-	{
-		AlchemyChar->GetMesh()->SetHiddenInGame(false, true);
-	}
-
-	// Camera: the mirror of the enter half above.
-	if (InteractionRig)
-	{
-		InteractionRig->DisableTilt();
-	}
-	if (PreStationViewTarget)
-	{
-		SetViewTargetWithBlend(PreStationViewTarget, 0.35f);
-		PreStationViewTarget = nullptr;
-	}
-
-	RefreshInputMode();
+	// The mode owns the whole teardown; popping it runs ExitMode.
+	PopPlayerMode(FindPlayerMode(UStationPlayerMode::StaticClass()));
 }
 
 void AAlchemySimulatorPlayerController::PushWidget(UBaseGameWidget* Widget)
@@ -402,17 +595,30 @@ void AAlchemySimulatorPlayerController::PopWidget()
 
 void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)
 {
-	if (IsAtStation())
+	ABasicInteractableStationObject* Station = GetCurrentStation();
+	if (!Station)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Setting active tool"));
+		// No station means no tool to make active — and nothing that would ever
+		// clear the custom cursor below, so do not install one either.
+		return;
+	}
 
-		if (CurrentStation->ActiveToolIndex != -1 && *CurrentStation->Tools.Find(CurrentStation->ActiveToolIndex) == tool)
+	UE_LOG(LogTemp, Error, TEXT("Setting active tool"));
+
+	// Find, not Find-and-deref: ActiveToolIndex != -1 does not guarantee the map
+	// still holds that index (a removed tool leaves the index stale), and
+	// dereferencing the null result is a crash.
+	if (ABaseTool** ActiveTool = Station->Tools.Find(Station->ActiveToolIndex))
+	{
+		if (*ActiveTool == tool)
 		{
+			// Clicking the active tool again toggles it off.
 			ResetActiveTool();
 			return;
 		}
-		CurrentStation->SetActiveTool(tool);
 	}
+
+	Station->SetActiveTool(tool);
 
 	if (tool && tool->Item && tool->Item->WorkbenchCursor && CursorWidgetClass)
 	{
@@ -440,9 +646,9 @@ void AAlchemySimulatorPlayerController::ResetActiveTool()
 	SetMouseCursorWidget(EMouseCursor::Custom, nullptr);
 	CurrentMouseCursor = EMouseCursor::Default;
 
-	if (CurrentStation)
+	if (ABasicInteractableStationObject* Station = GetCurrentStation())
 	{
-		CurrentStation->SetActiveTool(nullptr);
+		Station->SetActiveTool(nullptr);
 	}
 }
 
@@ -457,16 +663,30 @@ void AAlchemySimulatorPlayerController::DoBack()
 		return;
 	}
 
-	if (IsAtStation())
+	// Otherwise the active mode decides. Escape used to fall through to "open
+	// the character screen" in any mode that was not a station — a new mode had
+	// to remember to add a branch here to avoid that.
+	if (UPlayerModeBase* Active = GetActivePlayerMode())
 	{
-		// Camera and tilt are RemoveStationController's job now.
-		RemoveStationController();
+		if (Active->HandleBackAction())
+		{
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[PlayerMode] Back unhandled by %s"),
+		*GetNameSafe(GetActivePlayerMode()));
+}
+
+void AAlchemySimulatorPlayerController::OpenCharacterScreen()
+{
+	if (!CharacterScreenWidgetClass)
+	{
 		return;
 	}
 
 	// PushWidget refreshes input mode via the stack delegate.
 	PushWidget(CreateWidget<UCharacterScreenWidget>(this, CharacterScreenWidgetClass));
-
 }
 void AAlchemySimulatorPlayerController::DebugClick()
 {
@@ -678,13 +898,9 @@ void AAlchemySimulatorPlayerController::PlayerTick(float DeltaTime)
 
 	FVector TargetLocation = NewLocation + DragOffset;
 	TargetLocation.Z += DragZLift;
-	if (CurrentStation)
+	if (ABasicWorkbench* CurrentWorkbench = Cast<ABasicWorkbench>(GetCurrentStation()))
 	{
-		ABasicWorkbench* CurrentWorkbench = Cast<ABasicWorkbench>(CurrentStation);
-		if (CurrentWorkbench)
-		{
-			TargetLocation = CurrentWorkbench->ClampActorToWorkbench(DraggedActor, TargetLocation);
-		}
+		TargetLocation = CurrentWorkbench->ClampActorToWorkbench(DraggedActor, TargetLocation);
 	}
 
 	// Smooth the position to eliminate mouse jitter; speed of 25 keeps it responsive

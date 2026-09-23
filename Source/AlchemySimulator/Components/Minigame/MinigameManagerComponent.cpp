@@ -6,6 +6,7 @@
 #include "IToolActionTarget.h"
 #include "ItemDefinitions/ToolItemDefinition.h"
 #include "Widgets/WidgetStackManager.h"
+#include "Widgets/Menu/BaseGameWidget.h"
 #include "Widgets/CustomCursorWidget.h"
 #include "Framework/Application/SlateApplication.h"
 
@@ -51,6 +52,19 @@ void UMinigameManagerComponent::StartMinigame(TSubclassOf<UAlchemyMinigameWidget
     AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner());
     if (!PC) return;
 
+    // A modal widget owns the screen outright, so closing it from under itself
+    // is never right: CloseAll would pop the dialogue widget, whose OnClosed
+    // ends the conversation — a minigame would silently destroy it. Callers
+    // treat "no widget" as a refusal and fall back (e.g. to dragging).
+    if (UBaseGameWidget* Top = PC->WidgetManager->GetTopWidget())
+    {
+        if (Top->IsModal())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[Minigame] refused to start under the modal widget %s"), *GetNameSafe(Top));
+            return;
+        }
+    }
+
     PC->WidgetManager->CloseAll();
 
     if (ActiveMinigameWidget)
@@ -64,7 +78,10 @@ void UMinigameManagerComponent::StartMinigame(TSubclassOf<UAlchemyMinigameWidget
     {
         // Bind the result delegate, not the bool one, so Score/QualityMultiplier survive.
         ActiveMinigameWidget->OnMinigameResultFinished.AddDynamic(this, &UMinigameManagerComponent::HandleMinigameResult);
-        ActiveMinigameWidget->AddToViewport();
+        // Explicit Z-order: the default is 0, which is *below* every widget on
+        // the stack (UWidgetStackManager::BaseZOrder is 100). A minigame only
+        // ever looked on top because StartMinigame closes the stack first.
+        ActiveMinigameWidget->AddToViewport(MinigameZOrder);
 
         PC->RefreshInputMode();
     }

@@ -11,6 +11,10 @@ class UInputMappingContext;
 class UUserWidget;
 class UBaseGameWidget;
 class UWidgetStackManager;
+class UPlayerModeBase;
+class UExplorationPlayerMode;
+class UStationPlayerMode;
+class ABasicInteractableStationObject;
 
 
 
@@ -53,22 +57,47 @@ protected:
 	virtual void OnPossess(APawn* InPawn) override;
 
 	/**
-	 * Enter station mode. Owns the whole enter half: view target, camera rig,
-	 * tilt, table physics, pawn mesh and the input-mode refresh. Callers only
-	 * name the station — they must not touch any of that themselves.
-	 * No-op if already at a station.
+	 * Enter station mode — pushes a UStationPlayerMode, which owns the whole
+	 * enter half (view target, camera rig, tilt, table physics, pawn mesh).
+	 * Callers only name the station. No-op if already at a station.
 	 */
 	UFUNCTION()
 	void SetupStationController(ABasicInteractableStationObject* station);
 
 	/**
-	 * Leave station mode. The exact mirror of SetupStationController, including
-	 * ending any world drag that was in progress. No-op if not at a station.
+	 * Leave station mode — pops the UStationPlayerMode, whose ExitMode is the
+	 * exact mirror of its EnterMode. No-op if not at a station.
 	 */
 	UFUNCTION()
 	void RemoveStationController();
 
 	bool ShouldUseTouchControls() const;
+
+	/** Push the mode that sits at the bottom of the stack. Called once, from BeginPlay. */
+	void InitializePlayerModeStack();
+
+	/** Apply whatever the active mode wants beyond input mode — currently the interaction detector. */
+	void ApplyActiveModeState();
+
+	/**
+	 * Install the mapping contexts the active mode asks for, minus the actions
+	 * it blocks. This is the only place that adds or removes a mapping context
+	 * after startup — a key being live is mode data, not a branch in a handler.
+	 *
+	 * Blocked actions are removed by duplicating the context and unmapping them,
+	 * so modifiers and triggers (WASD swizzles, rotate negation) survive.
+	 * Cheap to call repeatedly: it early-outs when nothing has changed.
+	 */
+	void ApplyModeMappingContexts();
+
+	/** Contexts currently installed by ApplyModeMappingContexts, including derived copies. */
+	UPROPERTY()
+	TArray<TObjectPtr<UInputMappingContext>> AppliedMappingContexts;
+
+	/** What the last ApplyModeMappingContexts ran for, so repeats are free. */
+	UPROPERTY()
+	TObjectPtr<UPlayerModeBase> LastMappingMode = nullptr;
+	bool bLastMappingUIOpen = false;
 
 	UPROPERTY()
 	class UInteractionDetectorComponent* Detector = nullptr;
@@ -84,9 +113,11 @@ protected:
 	void HandleWidgetStackChanged(UBaseGameWidget* Widget);
 
 	void BindToDetector(APawn* InPawn);
-	void ResetActiveTool();
 
 public:
+	/** Clear the station's active tool and the custom cursor that goes with it. */
+	void ResetActiveTool();
+
 	void DoInteract();
 	void DoBack();
 
@@ -105,15 +136,61 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void PopWidget();
 
+	/** Open the character screen on the widget stack. The exploration mode's answer to Back. */
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void OpenCharacterScreen();
+
 	UPROPERTY(EditAnywhere)
 	class AInteractionCameraRig* InteractionRig;
 
 	/**
-	 * Station mode is stored in exactly one place: CurrentStation. There is no
-	 * separate "Interacting" flag to keep in step with it — ask this instead.
+	 * Station mode is stored in exactly one place — the UStationPlayerMode on
+	 * the mode stack. There is no separate flag or station pointer to keep in
+	 * step with it; ask these instead.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Interaction")
-	bool IsAtStation() const { return CurrentStation != nullptr; }
+	bool IsAtStation() const { return GetCurrentStation() != nullptr; }
+
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	ABasicInteractableStationObject* GetCurrentStation() const;
+
+	/**
+	 * The player mode stack. The bottom is always exploration — "no mode" is not
+	 * a representable state, so RefreshInputMode always has a mode to ask.
+	 * Mutate only through PushPlayerMode/PopPlayerMode.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player Mode")
+	TArray<TObjectPtr<UPlayerModeBase>> ModeStack;
+
+	/** The mode that currently owns input. Never null after BeginPlay. */
+	UFUNCTION(BlueprintPure, Category = "Player Mode")
+	UPlayerModeBase* GetActivePlayerMode() const;
+
+	/** Find the top-most mode of a class, or null. */
+	UPlayerModeBase* FindPlayerMode(TSubclassOf<UPlayerModeBase> ModeClass) const;
+
+	/**
+	 * Push an already-configured mode: it goes on the stack, EnterMode runs, then
+	 * the input mode and detector are refreshed. Configure the mode before pushing.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Player Mode")
+	void PushPlayerMode(UPlayerModeBase* Mode);
+
+	/**
+	 * Remove a mode from the stack and run its ExitMode. The mode is off the
+	 * stack before ExitMode runs, so anything it triggers already sees the mode
+	 * gone. Refuses to pop the bottom (exploration) mode.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Player Mode")
+	void PopPlayerMode(UPlayerModeBase* Mode);
+
+	/** Class used for the bottom of the stack. Swap in Blueprint to change walking-around behaviour. */
+	UPROPERTY(EditAnywhere, Category = "Player Mode")
+	TSubclassOf<UExplorationPlayerMode> ExplorationModeClass;
+
+	/** Class pushed when entering a station. */
+	UPROPERTY(EditAnywhere, Category = "Player Mode")
+	TSubclassOf<UStationPlayerMode> StationModeClass;
 
 	UFUNCTION(BlueprintCallable, Category = "Tools")
 	void SetActiveTool(class ABaseTool* tool);
@@ -124,15 +201,23 @@ public:
 	/**
 	 * The single source of truth for input mode. Derives the correct mode from
 	 * current state rather than having callers push one, in priority order:
-	 * active minigame > top stack widget > at a station > plain gameplay.
+	 * active minigame > top stack widget > active player mode.
 	 * Call this after any state change; never call SetInputMode directly.
 	 *
 	 * The top stack widget picks its own mode via UBaseGameWidget::IsModal():
 	 * a modal widget gets FInputModeUIOnly and no Enhanced Input action reaches
 	 * the game at all, so it must own its exit key; everything else gets
 	 * FInputModeGameAndUI and the world stays clickable behind it.
+	 *
+	 * With no widget and no minigame it installs whatever the top player mode
+	 * asks for via UPlayerModeBase::GetInputSpec — station and exploration are
+	 * no longer branches here. Minigames and widgets still take priority over
+	 * the mode stack; folding those onto it is a later stage.
 	 */
 	void RefreshInputMode();
+
+	/** Install one mode's spec. Shared by every branch of RefreshInputMode. */
+	void ApplyInputSpec(const struct FPlayerModeInputSpec& Spec);
 
 	UPROPERTY(EditAnywhere, Category = "Cursor")
 	TSubclassOf<class UCustomCursorWidget> CursorWidgetClass;
@@ -148,12 +233,6 @@ public:
 
 	bool TraceFromScreenPosition(const FVector2D& ScreenPos, FHitResult& OutHit) const;
 
-	/**
-	 * The station we are at, and the single source of truth for station mode.
-	 * Written only by SetupStationController/RemoveStationController.
-	 */
-	UPROPERTY()
-	ABasicInteractableStationObject* CurrentStation = nullptr;
 
 	/** The modal widget stack. Use PushWidget/PopWidget rather than accessing this directly. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
@@ -184,10 +263,6 @@ public:
 
 private:
 	void DebugClick();
-
-	/** View target to blend back to when leaving the station. Station-owned state. */
-	UPROPERTY()
-	AActor* PreStationViewTarget = nullptr;
 
 	UPROPERTY()
 	AActor* DraggedActor = nullptr;
