@@ -52,9 +52,19 @@ protected:
 	virtual void SetupInputComponent() override;
 	virtual void OnPossess(APawn* InPawn) override;
 
+	/**
+	 * Enter station mode. Owns the whole enter half: view target, camera rig,
+	 * tilt, table physics, pawn mesh and the input-mode refresh. Callers only
+	 * name the station — they must not touch any of that themselves.
+	 * No-op if already at a station.
+	 */
 	UFUNCTION()
 	void SetupStationController(ABasicInteractableStationObject* station);
 
+	/**
+	 * Leave station mode. The exact mirror of SetupStationController, including
+	 * ending any world drag that was in progress. No-op if not at a station.
+	 */
 	UFUNCTION()
 	void RemoveStationController();
 
@@ -98,8 +108,12 @@ public:
 	UPROPERTY(EditAnywhere)
 	class AInteractionCameraRig* InteractionRig;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
-	bool Interacting = false;
+	/**
+	 * Station mode is stored in exactly one place: CurrentStation. There is no
+	 * separate "Interacting" flag to keep in step with it — ask this instead.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Interaction")
+	bool IsAtStation() const { return CurrentStation != nullptr; }
 
 	UFUNCTION(BlueprintCallable, Category = "Tools")
 	void SetActiveTool(class ABaseTool* tool);
@@ -134,11 +148,12 @@ public:
 
 	bool TraceFromScreenPosition(const FVector2D& ScreenPos, FHitResult& OutHit) const;
 
+	/**
+	 * The station we are at, and the single source of truth for station mode.
+	 * Written only by SetupStationController/RemoveStationController.
+	 */
 	UPROPERTY()
 	ABasicInteractableStationObject* CurrentStation = nullptr;
-
-	UPROPERTY()
-	AActor* OldTarget;
 
 	/** The modal widget stack. Use PushWidget/PopWidget rather than accessing this directly. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
@@ -169,6 +184,10 @@ public:
 
 private:
 	void DebugClick();
+
+	/** View target to blend back to when leaving the station. Station-owned state. */
+	UPROPERTY()
+	AActor* PreStationViewTarget = nullptr;
 
 	UPROPERTY()
 	AActor* DraggedActor = nullptr;

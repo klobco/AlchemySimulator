@@ -152,55 +152,62 @@ void AAlchemySimulatorPlayerController::DoInteract()
 
 	if(bIsDraggingWorldActor) return;
 
-	if (CurrentTarget != nullptr)
+	// Leaving is decided by station state alone, never by what the detector is
+	// currently focused on — the focus can go null while standing at a station,
+	// and requiring a target here used to make E unable to exit.
+	if (IsAtStation())
 	{
-		if (!Interacting)
-		{
-			OldTarget = GetViewTarget();
-			ABasicInteractableStationObject* station = Cast<ABasicInteractableStationObject>(CurrentTarget.GetObject());
-			if (station)
-			{
-				InteractionRig->SetActorLocation(station->InteractionViewPoint->GetComponentLocation());
-				InteractionRig->SetActorRotation(station->InteractionViewPoint->GetComponentRotation());
-				SetViewTargetWithBlend(InteractionRig, 0.35f);
-				InteractionRig->EnableTilt();
-				Interacting = true;
-				SetupStationController(station);
-				IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
-			}
-			else if (ANPCCharacter* NPC = Cast<ANPCCharacter>(CurrentTarget.GetObject()))
-			{
-				// Starting only. UDialogueWidget is modal, so once it is up this
-				// action cannot fire again - ending the conversation is the widget's
-				// own exit key. StartDialogue self-guards on IsInDialogue().
-				DialogueRuntime->StartDialogue(NPC, NPC->DialogueProviderClass);
-			}
-			else
-			{
-				IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
-			}
-		}
-		else
-		{
-			WidgetManager->CloseAll();
-			RemoveStationController();
-			InteractionRig->DisableTilt();
-			SetViewTargetWithBlend(OldTarget, 0.35f);
-			Interacting = false;
-		}
+		RemoveStationController();
+		return;
+	}
+
+	if (CurrentTarget == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Interacting with null"));
+		return;
+	}
+
+	if (ABasicInteractableStationObject* station = Cast<ABasicInteractableStationObject>(CurrentTarget.GetObject()))
+	{
+		// Every side effect of entering (view target, tilt, physics, mesh, input
+		// mode) belongs to SetupStationController so the exit stays a mirror.
+		SetupStationController(station);
+		IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
+	}
+	else if (ANPCCharacter* NPC = Cast<ANPCCharacter>(CurrentTarget.GetObject()))
+	{
+		// Starting only. UDialogueWidget is modal, so once it is up this
+		// action cannot fire again - ending the conversation is the widget's
+		// own exit key. StartDialogue self-guards on IsInDialogue().
+		DialogueRuntime->StartDialogue(NPC, NPC->DialogueProviderClass);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("Interacting with null"));
+		IInteractable::Execute_Interact(CurrentTarget.GetObject(), GetPawn());
 	}
 }
 
 void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractableStationObject* station)
 {
+	if (!station || IsAtStation())
+	{
+		return;
+	}
+
 	CurrentStation = station;
+
+	// Camera: frame the station and remember where to blend back to.
+	PreStationViewTarget = GetViewTarget();
+	if (InteractionRig && station->InteractionViewPoint)
+	{
+		InteractionRig->SetActorLocation(station->InteractionViewPoint->GetComponentLocation());
+		InteractionRig->SetActorRotation(station->InteractionViewPoint->GetComponentRotation());
+		SetViewTargetWithBlend(InteractionRig, 0.35f);
+		InteractionRig->EnableTilt();
+	}
+
 	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(CurrentStation))
 	{
-		if (bench->HerbsOnTable.Num() > 0)
 		for (AActor* plant : bench->HerbsOnTable) {
 
 			if (ABasePlant* basePlant = Cast<ABasePlant>(plant))
@@ -213,14 +220,13 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 			 }
 		}
 	}
-	ACharacter* C = Cast<ACharacter>(GetPawn());
-	if (C)
+
+	if (AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(GetPawn()))
 	{
-		if(AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(C)){
-			AlchemyChar->GetMesh()->SetHiddenInGame(true, true);
-		}
-		RefreshInputMode();
+		AlchemyChar->GetMesh()->SetHiddenInGame(true, true);
 	}
+
+	RefreshInputMode();
 }
 
 void AAlchemySimulatorPlayerController::HandleWidgetStackChanged(UBaseGameWidget* Widget)
@@ -286,7 +292,7 @@ void AAlchemySimulatorPlayerController::RefreshInputMode()
 	}
 
 	// 3. At a station with no widget open — world clicks go to table items.
-	if (Interacting)
+	if (IsAtStation())
 	{
 		FInputModeGameAndUI Mode;
 		Mode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -313,10 +319,30 @@ void AAlchemySimulatorPlayerController::RefreshInputMode()
 
 void AAlchemySimulatorPlayerController::RemoveStationController()
 {
+	if (!IsAtStation())
+	{
+		return;
+	}
+
+	// A drag must not outlive the station it started at: PlayerTick would keep
+	// moving DraggedActor with no workbench left to clamp it to, and its physics
+	// would stay disabled forever.
+	if (bIsDraggingWorldActor)
+	{
+		StopWorldDrag();
+	}
+
+	// Still needs CurrentStation, so it runs before the clear below.
 	ResetActiveTool();
+
+	ABasicInteractableStationObject* Station = CurrentStation;
+	// Cleared first, so every RefreshInputMode triggered from here on — CloseAll
+	// broadcasts once per popped widget — already sees us out of station mode.
+	CurrentStation = nullptr;
+
 	WidgetManager->CloseAll();
 
-	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(CurrentStation))
+	if (ABasicWorkbench* bench = Cast<ABasicWorkbench>(Station))
 	{
 		for (AActor* plant : bench->HerbsOnTable) {
 			if (ABasePlant* basePlant = Cast<ABasePlant>(plant))
@@ -330,16 +356,20 @@ void AAlchemySimulatorPlayerController::RemoveStationController()
 		}
 	}
 
-	CurrentStation = nullptr;
-	// Cleared here, before RefreshInputMode, so it doesn't still see us at a station.
-	Interacting = false;
-
-	ACharacter* C = Cast<ACharacter>(GetPawn());
-	if (C)
+	if (AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(GetPawn()))
 	{
-		if(AAlchemySimulatorCharacter* AlchemyChar = Cast<AAlchemySimulatorCharacter>(C)){
-			AlchemyChar->GetMesh()->SetHiddenInGame(false, true);
-		}
+		AlchemyChar->GetMesh()->SetHiddenInGame(false, true);
+	}
+
+	// Camera: the mirror of the enter half above.
+	if (InteractionRig)
+	{
+		InteractionRig->DisableTilt();
+	}
+	if (PreStationViewTarget)
+	{
+		SetViewTargetWithBlend(PreStationViewTarget, 0.35f);
+		PreStationViewTarget = nullptr;
 	}
 
 	RefreshInputMode();
@@ -372,7 +402,7 @@ void AAlchemySimulatorPlayerController::PopWidget()
 
 void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)
 {
-	if (Interacting && CurrentStation)
+	if (IsAtStation())
 	{
 		UE_LOG(LogTemp, Error, TEXT("Setting active tool"));
 
@@ -427,12 +457,10 @@ void AAlchemySimulatorPlayerController::DoBack()
 		return;
 	}
 
-	if (Interacting)
+	if (IsAtStation())
 	{
+		// Camera and tilt are RemoveStationController's job now.
 		RemoveStationController();
-		InteractionRig->DisableTilt();
-		SetViewTargetWithBlend(OldTarget, 0.35f);
-		Interacting = false;
 		return;
 	}
 
@@ -442,7 +470,7 @@ void AAlchemySimulatorPlayerController::DoBack()
 }
 void AAlchemySimulatorPlayerController::DebugClick()
 {
-	if (!Interacting) return;
+	if (!IsAtStation()) return;
 
 	FHitResult Hit;
 	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit))

@@ -109,7 +109,7 @@ void UMinigameManagerComponent::StopMinigame()
 			// state we're returning to (station or plain gameplay).
 			PC->RefreshInputMode();
 
-			if (PC->Interacting && PC->CurrentMouseCursor == EMouseCursor::Custom && PC->CursorWidgetInstance)
+			if (PC->IsAtStation() && PC->CurrentMouseCursor == EMouseCursor::Custom && PC->CursorWidgetInstance)
 			{
 				GetWorld()->GetTimerManager().SetTimerForNextTick(PC, &AAlchemySimulatorPlayerController::RestoreCustomCursor);
 			}

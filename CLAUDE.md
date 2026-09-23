@@ -220,13 +220,14 @@ Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (
 2. **Top stack widget** (`UWidgetStackManager::GetTopWidget()`) → the widget picks its own mode via `UBaseGameWidget::IsModal()`:
    - `IsModal() == false` (default) → `FInputModeGameAndUI` focused on that widget — the most recently opened widget owns click priority, and the world stays clickable behind it
    - `IsModal() == true` → `FInputModeUIOnly` focused on that widget — **no Enhanced Input action reaches the game at all**. `UDialogueWidget` is the first of these ("conversation mode")
-3. **At a station** (`Interacting == true`, no widget open) → `FInputModeGameAndUI` with no widget focus + `FSlateApplication::SetAllUserFocusToGameViewport()`, so world clicks reach table items
+3. **At a station** (`IsAtStation()`, no widget open) → `FInputModeGameAndUI` with no widget focus + `FSlateApplication::SetAllUserFocusToGameViewport()`, so world clicks reach table items
 4. **Plain gameplay** → `FInputModeGameOnly`, cursor hidden
 
 Rules when touching this area:
 - **Never call `SetInputMode`, `bShowMouseCursor`, `bEnableClickEvents`, or `SetIgnore*Input` directly** — change the underlying state, then call `RefreshInputMode()`
 - Widget-stack changes refresh automatically: `BeginPlay` binds `HandleWidgetStackChanged` to `UWidgetStackManager::OnWidgetPushed` / `OnWidgetPopped`. `CloseAll` broadcasts once per popped widget, so every stack path is covered — this is why `PushWidget`/`PopWidget` no longer contain input-mode code
-- `RemoveStationController` clears `Interacting = false` itself, *before* refreshing — callers used to set it afterwards, which made the refresh see a stale station state
+- **Station mode lives in exactly one variable: `CurrentStation`.** `IsAtStation()` is the only way to ask; there is no `Interacting` bool any more (it was a second copy of the same fact with four write sites). `SetupStationController`/`RemoveStationController` are the only writers, they own *both* halves of enter/exit — view target (`PreStationViewTarget`), rig placement, tilt, table physics, pawn mesh visibility, active tool, and the refresh — and each is a no-op when the state already matches. `DoInteract`/`DoBack` only dispatch; they must not reach into camera or tilt themselves
+- `RemoveStationController` clears `CurrentStation` *before* `CloseAll()` and the refresh, so no refresh triggered by a popping widget sees a stale station. It also ends any in-progress world drag — a drag must not outlive its workbench, or `PlayerTick` keeps moving the actor with nothing to clamp it to and its physics stays off forever
 - `RefreshInputMode()` must stay **idempotent**: `SetIgnoreLookInput`/`SetIgnoreMoveInput` are counter-based in UE, so it calls `ResetIgnore*Input()` first. Without that, `CloseAll` firing N refreshes would permanently freeze the pawn
 - Always set `SetHideCursorDuringCapture(false)` on `FInputModeGameAndUI`. It defaults to `true`, which hides and re-centers the OS cursor for the whole left-click-drag gesture and freezes `DeprojectMousePositionToWorld` — this silently breaks world dragging
 - Do **not** use `EMouseCaptureMode::NoCapture` to work around cursor issues; it disables capture-based click routing and makes the first click on the viewport an OS focus-activation click (a spurious "double-click required" bug)
