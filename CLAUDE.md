@@ -199,14 +199,18 @@ Fully data-driven brewing pipeline, computed by `UAlchemyCalculationSubsystem` (
 - `ADayNightCycleController` (`Actors/`) — binds to `UGameTimeSubsystem`'s tick events and rotates a Sun and Moon `ADirectionalLight` based on `SunriseHour`/`SunsetHour`; this is the only consumer of `GetNormalizedDay`/game-time ticks for lighting today — new systems that care about time-of-day (NPC schedules, plant growth, shop hours) should subscribe to the same subsystem rather than polling `ADayNightCycleController`
 
 ### Minigame System
-- `UAlchemyMinigameWidget` (`Widgets/Minigames/`) — base widget; exposes `OnMinigameFinished` delegate
-- `UAlchemyCutMinigameWidget` — 20-segment ring with 4 green zones; indicator moves at 0.08 s/segment tick
-- `UMinigameManagerComponent` (`Components/Minigame/`) — owns the active minigame widget lifecycle (create, show, destroy). Added at an explicit `MinigameZOrder` (1000) so it renders above the modal stack rather than relying on `CloseAll` having emptied it, and it **refuses to start under a modal widget** — `CloseAll` would otherwise pop the dialogue widget, whose `OnClosed` ends the conversation. A refusal leaves `ActiveMinigameWidget` null, which callers already treat as "action not started"
+- `UAlchemyMinigameWidget` (`Widgets/Minigames/`) — base widget, **a `UBaseGameWidget` with `IsModal() == true`**. A minigame is an ordinary modal widget on the widget stack; there is no minigame special case anywhere in input handling. The base owns focusability, `CancelKeys` (Escape / gamepad B by default → `CancelMinigame()`, no result) and swallowing every other key. A subclass handles its own keys first and calls `Super` for the rest, and calls `FinishMinigame(FMinigameResult)` exactly once
+- **A minigame must never `RemoveFromParent` itself** — it would leave the viewport behind the stack's back and strand a dead entry on it. The manager closes it through the stack
+- `UAlchemyCutMinigameWidget` — 20-segment ring with 4 green zones; indicator moves at 0.08 s/segment tick. `UPestleMortarMinigame` — click crush targets before they expire; re-takes keyboard focus after each hit (the target is a focusable button that removes itself)
+- `UMinigameManagerComponent` (`Components/Minigame/`) — owns *which* minigame is running and *what* tool action it resolves, **not** the viewport. `StartMinigame` pushes the widget onto the stack **above whatever is open** (no `CloseAll` — the table widget stays visible behind it) and refuses under a modal widget, which covers both dialogue and a second minigame. A refusal leaves `ActiveMinigameWidget` null, which callers already treat as "action not started"
+- **Every way a minigame ends — result, cancel key, `StopMinigame`, `CloseAll` on leaving the station — closes it through the stack**, and the manager's `HandleWidgetClosed` (bound to `OnWidgetPopped`) is the one place that clears `ActiveMinigameWidget` and the pending action. Do not add cleanup to any single close path
 - Minigame results (`FMinigameResult` — success/score/quality multiplier) feed into `UProcessingComponent::BuildProcessedInstance` as the `minigameQuality` input
 
 ### UI / Widget Stack
 - `UBaseGameWidget` (`Widgets/Menu/`) — base for modal widgets; lifecycle: `OnOpened` / `OnClosed` / `CanClose`
-- `UWidgetStackManager` (`Widgets/`) — modal stack (Z-order starts at 100); `PushWidget` / `PopWidget` / `CloseAll`; `CanClose` veto prevents stack pop
+- `UWidgetStackManager` (`Widgets/`) — modal stack (Z-order starts at 100, monotonic while non-empty); `PushWidget` / `PopWidget` / `CloseWidget(Widget)` / `CloseAll`; `CanClose` veto prevents `PopWidget` only. **`PopWidget` closes whatever is on top**; an owner ending its *own* widget's lifetime uses `CloseWidget(Widget)`, which finds it wherever it sits. All three removal paths share one `CloseAt` and all broadcast `OnWidgetPopped`
+- **A modal widget blocks the widgets beneath it**: they stay drawn but are set `HitTestInvisible` until it closes (original visibility saved and restored). `FInputModeUIOnly` only keeps input out of the *game* — Slate still routes clicks to any widget under the cursor — so this is what stops a stray click during a minigame from reaching the table widget
+- Camera tilt follows the stack too (`HandleWidgetStackChanged`): off while any widget is open, back on when the stack empties *and* the player is at a station. Not in `PushWidget`/`PopWidget`, because `CloseWidget`/`CloseAll` bypass those
 - `UTableWidget` / `UTableInventoryWidget` (`Widgets/Tables/`) — workbench UI
 - `UInventoryWidget` / `UInventorySlotWidget` (`Widgets/Inventory/`) — character inventory UI
 - `UCharacterScreenWidget` (`Widgets/Menu/`) — full character screen (binds a `UInventoryWidget`); opened via `AAlchemySimulatorPlayerController::CharacterScreenWidgetClass`, same modal stack as everything else
@@ -222,7 +226,7 @@ What the player is *doing* — exploring, at a station, later shopping — is a 
 - `MappingContexts` / `BlockedActions` / `BlockedActionsWhileUIOpen` (`EditDefaultsOnly` soft refs) — which keys are live. See "Per-mode input" below
 - `HandleBackAction()` — what Escape does in this mode, asked only when no widget is open
 
-Current modes: `UExplorationPlayerMode` (GameOnly, cursor hidden, pawn input live, detector on, Back opens the character screen) and `UStationPlayerMode` (GameAndUI, cursor, viewport focus, detector **off**, locomotion actions unmapped, Back leaves the station). Dialogue and minigames are not modes yet — they still ride on the widget stack and the minigame manager.
+Current modes: `UExplorationPlayerMode` (GameOnly, cursor hidden, pawn input live, detector on, Back opens the character screen) and `UStationPlayerMode` (GameAndUI, cursor, viewport focus, detector **off**, locomotion actions unmapped, Back leaves the station). **Dialogue and minigames are deliberately *not* modes** — both are modal stack widgets. A mode is for what the player is doing *in the world* and earns its place through world side effects (camera, physics, detector, which keys are live). Everything a minigame or dialogue needs from input is already `IsModal()`, and since the widget branch outranks the mode branch in `RefreshInputMode`, a mode's input spec would never be read — it would only be a second owner of the same fact. Make one a mode the day it needs a world side effect (e.g. a camera close-up on the mortar).
 
 Rules:
 - The stack is **never empty**: `BeginPlay` → `InitializePlayerModeStack()` pushes exploration, and `PopPlayerMode` refuses to pop index 0. `RefreshInputMode` therefore always has a mode to ask
@@ -237,24 +241,25 @@ Rules:
 
 - A mode's `MappingContexts` **replace** the controller's `DefaultMappingContexts`; empty (the usual case) means "take the defaults". Name contexts only when a mode needs *different* bindings, not merely fewer
 - Removing keys is `BlockedActions`' job. The applier duplicates the context and calls `UnmapAllKeysFromAction` — **never rebuild a context with `MapKey`**, which drops the modifiers and triggers that make WASD and rotate work
-- `BlockedActionsWhileUIOpen` adds to that whenever a stack widget or a minigame is up. This is how Jump dies with the character screen open
+- `BlockedActionsWhileUIOpen` adds to that whenever a stack widget (minigames included) is up. This is how Jump dies with the character screen open
 - **This is the only real gate on non-movement actions.** `SetIgnoreMove/LookInput` only stop `AddMovementInput`/`AddControllerYawInput`; Jump is bound straight to `ACharacter::Jump` and was live at stations and under widgets until it became mode data
 - Blocked actions are `TSoftObjectPtr<UInputAction>` and the C++ defaults hard-code `/Game/Input/Actions/IA_*` paths. A renamed or moved action asset logs `[PlayerMode] could not resolve …` and silently widens what the player can press — **grep for that warning if a key that should be dead still fires**. Override the lists on a Blueprint subclass of the mode and point `StationModeClass`/`ExplorationModeClass` at it rather than editing the paths
 
 ### Input Mode Management (single source of truth)
 `AAlchemySimulatorPlayerController::RefreshInputMode()` is the **only** place that may call `SetInputMode`. It *derives* the mode from current state instead of having callers push one, in strict priority order:
-1. **Active minigame** (`UMinigameManagerComponent::GetActiveMinigameWidget()`) → `FInputModeUIOnly` focused on that widget — fully modal
-2. **Top stack widget** (`UWidgetStackManager::GetTopWidget()`) → the widget picks its own mode via `UBaseGameWidget::IsModal()`:
+1. **Top stack widget** (`UWidgetStackManager::GetTopWidget()`) → the widget picks its own mode via `UBaseGameWidget::IsModal()`:
    - `IsModal() == false` (default) → `FInputModeGameAndUI` focused on that widget — the most recently opened widget owns click priority, and the world stays clickable behind it
-   - `IsModal() == true` → `FInputModeUIOnly` focused on that widget — **no Enhanced Input action reaches the game at all**. `UDialogueWidget` is the first of these ("conversation mode")
-3. **The active player mode's `GetInputSpec()`** — station and exploration are modes, not branches here
+   - `IsModal() == true` → `FInputModeUIOnly` focused on that widget — **no Enhanced Input action reaches the game at all**. `UDialogueWidget` and every `UAlchemyMinigameWidget` are modal
+2. **The active player mode's `GetInputSpec()`** — station and exploration are modes, not branches here
+
+(Until Stage 4 of the player-mode plan, 2026-09-25, minigames were a separate priority-1 branch living outside the stack at Z-order 1000. That branch, `MinigameZOrder` and `StartMinigame`'s `CloseAll` are gone.)
 
 Every branch builds an `FPlayerModeInputSpec` and hands it to the one applier, `ApplyInputSpec()`; that is the only function that touches `SetInputMode`, `bShowMouseCursor`, `bEnableClickEvents` and the ignore counters.
 
 Rules when touching this area:
 - **Never call `SetInputMode`, `bShowMouseCursor`, `bEnableClickEvents`, or `SetIgnore*Input` directly** — change the underlying state, then call `RefreshInputMode()`
 - Widget-stack changes refresh automatically: `BeginPlay` binds `HandleWidgetStackChanged` to `UWidgetStackManager::OnWidgetPushed` / `OnWidgetPopped`. `CloseAll` broadcasts once per popped widget, so every stack path is covered — this is why `PushWidget`/`PopWidget` no longer contain input-mode code
-- **A world drag only survives while the world owns the mouse.** `RefreshInputMode` ends the drag whenever a widget or minigame is up, because `LeftMouseAction` *Completed* never arrives under `FInputModeUIOnly` — without that the drag is permanent: physics stays off on `DraggedActor` and `PlayerTick` keeps moving it. `UStationPlayerMode::ExitMode` does the same for leaving the station (no workbench left to clamp to)
+- **A world drag only survives while the world owns the mouse.** `RefreshInputMode` ends the drag whenever a widget (minigames included) is up, because `LeftMouseAction` *Completed* never arrives under `FInputModeUIOnly` — without that the drag is permanent: physics stays off on `DraggedActor` and `PlayerTick` keeps moving it. `UStationPlayerMode::ExitMode` does the same for leaving the station (no workbench left to clamp to)
 - `RefreshInputMode()` must stay **idempotent**: `SetIgnoreLookInput`/`SetIgnoreMoveInput` are counter-based in UE, so it calls `ResetIgnore*Input()` first. Without that, `CloseAll` firing N refreshes would permanently freeze the pawn
 - Always set `SetHideCursorDuringCapture(false)` on `FInputModeGameAndUI`. It defaults to `true`, which hides and re-centers the OS cursor for the whole left-click-drag gesture and freezes `DeprojectMousePositionToWorld` — this silently breaks world dragging
 - Do **not** use `EMouseCaptureMode::NoCapture` to work around cursor issues; it disables capture-based click routing and makes the first click on the viewport an OS focus-activation click (a spurious "double-click required" bug)

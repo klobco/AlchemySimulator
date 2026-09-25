@@ -331,11 +331,10 @@ void AAlchemySimulatorPlayerController::ApplyModeMappingContexts()
 		return;
 	}
 
-	// A widget or minigame owning the screen is part of what decides which keys
-	// are live, so it is part of the signature below.
-	const bool bUIOpen =
-		(MinigameManager && MinigameManager->GetActiveMinigameWidget() != nullptr) ||
-		(WidgetManager && WidgetManager->HasOpenWidgets());
+	// A widget owning the screen is part of what decides which keys are live, so
+	// it is part of the signature below. Minigames are stack widgets, so this
+	// covers them too.
+	const bool bUIOpen = WidgetManager && WidgetManager->HasOpenWidgets();
 
 	// CloseAll refreshes once per popped widget; without this the whole set
 	// would be torn down and rebuilt each time.
@@ -443,19 +442,35 @@ void AAlchemySimulatorPlayerController::SetupStationController(ABasicInteractabl
 
 void AAlchemySimulatorPlayerController::HandleWidgetStackChanged(UBaseGameWidget* Widget)
 {
+	// Camera tilt follows the stack the same way input mode does. Here rather than
+	// in PushWidget/PopWidget, because CloseWidget and CloseAll never pass through
+	// those. Enabled only at a station: EnableTilt re-captures the arm's base
+	// rotation, so a tilt left running in exploration would skew the next
+	// station's camera.
+	if (InteractionRig && WidgetManager)
+	{
+		if (WidgetManager->HasOpenWidgets())
+		{
+			InteractionRig->DisableTilt();
+		}
+		else if (IsAtStation())
+		{
+			InteractionRig->EnableTilt();
+		}
+	}
+
 	RefreshInputMode();
 }
 
 void AAlchemySimulatorPlayerController::RefreshInputMode()
 {
-	UUserWidget* ActiveMinigame = MinigameManager ? MinigameManager->GetActiveMinigameWidget() : nullptr;
 	UBaseGameWidget* TopWidget = WidgetManager ? WidgetManager->GetTopWidget() : nullptr;
 
 	// A world drag is only tenable while the world owns the mouse. Under a
-	// widget or a minigame the LeftMouseAction Completed event never arrives, so
-	// the drag would never end: physics stays off on DraggedActor and PlayerTick
-	// keeps moving it for the rest of the session.
-	if (bIsDraggingWorldActor && (ActiveMinigame || TopWidget))
+	// widget (minigames included) the LeftMouseAction Completed event never
+	// arrives, so the drag would never end: physics stays off on DraggedActor and
+	// PlayerTick keeps moving it for the rest of the session.
+	if (bIsDraggingWorldActor && TopWidget)
 	{
 		StopWorldDrag();
 	}
@@ -465,18 +480,8 @@ void AAlchemySimulatorPlayerController::RefreshInputMode()
 	// nothing has changed.
 	ApplyModeMappingContexts();
 
-	// 1. A minigame is fully modal.
-	if (ActiveMinigame)
-	{
-		FPlayerModeInputSpec Spec;
-		Spec.Kind = EPlayerInputModeKind::UIOnly;
-		Spec.bShowCursor = true;
-		Spec.WidgetToFocus = ActiveMinigame;
-		ApplyInputSpec(Spec);
-		return;
-	}
-
-	// 2. The top-most stack widget owns click priority.
+	// 1. The top-most stack widget owns click priority. Minigames are modal
+	// stack widgets, so they land here too — there is no minigame special case.
 	if (TopWidget)
 	{
 		FPlayerModeInputSpec Spec;
@@ -491,7 +496,7 @@ void AAlchemySimulatorPlayerController::RefreshInputMode()
 		return;
 	}
 
-	// 3. Whatever the active player mode asks for. Station and exploration are
+	// 2. Whatever the active player mode asks for. Station and exploration are
 	// modes now, not branches; the stack is never empty after BeginPlay.
 	if (UPlayerModeBase* ActiveMode = GetActivePlayerMode())
 	{
@@ -570,27 +575,14 @@ void AAlchemySimulatorPlayerController::RemoveStationController()
 
 void AAlchemySimulatorPlayerController::PushWidget(UBaseGameWidget* Widget)
 {
+	// Input mode and camera tilt follow via the stack's OnWidgetPushed delegate.
 	WidgetManager->PushWidget(Widget);
-	// Disable camera tilt whenever the stack is non-empty
-	if (InteractionRig && WidgetManager->HasOpenWidgets())
-	{
-		InteractionRig->DisableTilt();
-	}
-
-	// Input mode is refreshed via the stack's OnWidgetPushed delegate.
 }
 
 void AAlchemySimulatorPlayerController::PopWidget()
 {
+	// Input mode and camera tilt follow via the stack's OnWidgetPopped delegate.
 	WidgetManager->PopWidget();
-	UE_LOG(LogTemp, Error, TEXT("Popping widget"));
-	// Re-enable camera tilt once all widgets are dismissed
-	if (InteractionRig && !WidgetManager->HasOpenWidgets())
-	{
-		InteractionRig->EnableTilt();
-	}
-
-	// Input mode is refreshed via the stack's OnWidgetPopped delegate.
 }
 
 void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)

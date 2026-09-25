@@ -166,6 +166,16 @@ void UPestleMortarMinigame::HandleTargetFinished(ECrushHitResult HitResult)
     if (CurrentGroundness >= RequiredGroundness)
     {
         EndMinigame(true);
+        return;
+    }
+
+    // The clicked target was a focusable button and has just removed itself,
+    // taking keyboard focus with it — without this the cancel keys stop working
+    // after the first hit. Safe here because the click has already completed;
+    // re-grabbing in NativeOnFocusLost instead would fight the button mid-press.
+    if (!IsMinigameClosed())
+    {
+        SetFocus();
     }
 }
 
@@ -213,7 +223,7 @@ void UPestleMortarMinigame::EndMinigame(bool bSuccess)
     );
 
     OnPestleMortarFinished.Broadcast(Result);
+    // No RemoveFromParent: the minigame manager closes this through the widget
+    // stack, and leaving the viewport behind the stack's back would strand an entry on it.
     FinishMinigame(Result);
-
-    RemoveFromParent();
 }

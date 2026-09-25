@@ -18,6 +18,17 @@ UMinigameManagerComponent::UMinigameManagerComponent()
 void UMinigameManagerComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Every path that ends a minigame goes through the stack — result, cancel key,
+	// StopMinigame, and CloseAll when the station is left — so listening here is
+	// what guarantees a closed minigame can never resolve its action later.
+	if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner()))
+	{
+		if (PC->WidgetManager)
+		{
+			PC->WidgetManager->OnWidgetPopped.AddUniqueDynamic(this, &UMinigameManagerComponent::HandleWidgetClosed);
+		}
+	}
 }
 
 bool UMinigameManagerComponent::TryStartToolAction(UToolItemDefinition* Tool, AActor* Target, UPrimitiveComponent* HitComponent)
@@ -50,11 +61,11 @@ void UMinigameManagerComponent::StartMinigame(TSubclassOf<UAlchemyMinigameWidget
     if (!MinigameWidgetClass) return;
 
     AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner());
-    if (!PC) return;
+    if (!PC || !PC->WidgetManager) return;
 
-    // A modal widget owns the screen outright, so closing it from under itself
-    // is never right: CloseAll would pop the dialogue widget, whose OnClosed
-    // ends the conversation — a minigame would silently destroy it. Callers
+    // A modal widget owns the screen outright, and a minigame is modal itself, so
+    // this also refuses a second minigame over the first. Stacking a minigame on a
+    // dialogue would leave the conversation running blind underneath it. Callers
     // treat "no widget" as a refusal and fall back (e.g. to dragging).
     if (UBaseGameWidget* Top = PC->WidgetManager->GetTopWidget())
     {
@@ -65,26 +76,26 @@ void UMinigameManagerComponent::StartMinigame(TSubclassOf<UAlchemyMinigameWidget
         }
     }
 
-    PC->WidgetManager->CloseAll();
-
+    // Only reachable if something non-modal was pushed above a running minigame.
     if (ActiveMinigameWidget)
     {
         StopMinigame();
     }
 
-    ActiveMinigameWidget = CreateWidget<UAlchemyMinigameWidget>(PC, MinigameWidgetClass);
+    UAlchemyMinigameWidget* Widget = CreateWidget<UAlchemyMinigameWidget>(PC, MinigameWidgetClass);
+    if (!Widget) return;
 
-    if (ActiveMinigameWidget)
-    {
-        // Bind the result delegate, not the bool one, so Score/QualityMultiplier survive.
-        ActiveMinigameWidget->OnMinigameResultFinished.AddDynamic(this, &UMinigameManagerComponent::HandleMinigameResult);
-        // Explicit Z-order: the default is 0, which is *below* every widget on
-        // the stack (UWidgetStackManager::BaseZOrder is 100). A minigame only
-        // ever looked on top because StartMinigame closes the stack first.
-        ActiveMinigameWidget->AddToViewport(MinigameZOrder);
+    // Set before the push: pushing broadcasts OnWidgetPushed, and anything reacting
+    // to it should already see this as the active minigame.
+    ActiveMinigameWidget = Widget;
 
-        PC->RefreshInputMode();
-    }
+    // Bind the result delegate, not the bool one, so Score/QualityMultiplier survive.
+    Widget->OnMinigameResultFinished.AddUniqueDynamic(this, &UMinigameManagerComponent::HandleMinigameResult);
+
+    // No CloseAll: the minigame sits on top of whatever is open (the table widget
+    // stays visible), and the stack makes everything beneath a modal widget
+    // unclickable. Input mode follows via the stack's OnWidgetPushed.
+    PC->PushWidget(Widget);
 }
 
 void UMinigameManagerComponent::HandleMinigameResult(FMinigameResult Result)
@@ -114,22 +125,44 @@ void UMinigameManagerComponent::StopMinigame()
 	// A cancelled or replaced minigame must never resolve its action later.
 	PendingAction.Reset();
 
-	if (ActiveMinigameWidget)
+	if (!ActiveMinigameWidget)
 	{
+		return;
+	}
+
+	AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner());
+	if (PC && PC->WidgetManager)
+	{
+		// HandleWidgetClosed does the rest.
+		PC->WidgetManager->CloseWidget(ActiveMinigameWidget.Get());
+	}
+	else
+	{
+		// No stack to close it through — only possible during teardown.
 		ActiveMinigameWidget->RemoveFromParent();
 		ActiveMinigameWidget = nullptr;
+	}
+}
 
-		AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner());
-		if (PC)
-		{
-			// ActiveMinigameWidget is already null, so this falls through to whatever
-			// state we're returning to (station or plain gameplay).
-			PC->RefreshInputMode();
+void UMinigameManagerComponent::HandleWidgetClosed(UBaseGameWidget* Widget)
+{
+	if (!Widget || Widget != ActiveMinigameWidget.Get())
+	{
+		return;
+	}
 
-			if (PC->IsAtStation() && PC->CurrentMouseCursor == EMouseCursor::Custom && PC->CursorWidgetInstance)
-			{
-				GetWorld()->GetTimerManager().SetTimerForNextTick(PC, &AAlchemySimulatorPlayerController::RestoreCustomCursor);
-			}
-		}
+	// However it was closed, it resolves nothing from here on: a late FinishMinigame
+	// from a timer on the dying widget reaches no one.
+	ActiveMinigameWidget->OnMinigameResultFinished.RemoveDynamic(this, &UMinigameManagerComponent::HandleMinigameResult);
+	ActiveMinigameWidget = nullptr;
+	PendingAction.Reset();
+
+	// Input mode is not ours to touch — the controller refreshes it from its own
+	// OnWidgetPopped handler. The tool cursor does not survive the UIOnly
+	// round-trip, so put it back on the next tick, once both handlers have run.
+	AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwner());
+	if (PC && PC->IsAtStation() && PC->CurrentMouseCursor == EMouseCursor::Custom && PC->CursorWidgetInstance)
+	{
+		GetWorld()->GetTimerManager().SetTimerForNextTick(PC, &AAlchemySimulatorPlayerController::RestoreCustomCursor);
 	}
 }

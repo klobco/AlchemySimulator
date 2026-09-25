@@ -108,7 +108,7 @@ protected:
 	UFUNCTION()
 	void OnFocusedChanged(UObject* NewObj, UObject* OldObj);
 
-	/** Bound to the widget stack's push/pop delegates so input mode follows the stack. */
+	/** Bound to the widget stack's push/pop delegates so input mode and camera tilt follow the stack. */
 	UFUNCTION()
 	void HandleWidgetStackChanged(UBaseGameWidget* Widget);
 
@@ -124,14 +124,14 @@ public:
 	/**
 	 * Push a fully configured widget onto the modal stack and display it.
 	 * Create and call any setup methods on the widget before passing it here.
-	 * Also manages camera rig tilt (disables while any widget is open).
+	 * Input mode and camera tilt follow from HandleWidgetStackChanged.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void PushWidget(UBaseGameWidget* Widget);
 
 	/**
 	 * Close the top-most widget. Respects UBaseGameWidget::CanClose.
-	 * Re-enables camera tilt when the stack becomes empty.
+	 * Input mode and camera tilt follow from HandleWidgetStackChanged.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void PopWidget();
@@ -201,18 +201,17 @@ public:
 	/**
 	 * The single source of truth for input mode. Derives the correct mode from
 	 * current state rather than having callers push one, in priority order:
-	 * active minigame > top stack widget > active player mode.
+	 * top stack widget > active player mode.
 	 * Call this after any state change; never call SetInputMode directly.
 	 *
 	 * The top stack widget picks its own mode via UBaseGameWidget::IsModal():
 	 * a modal widget gets FInputModeUIOnly and no Enhanced Input action reaches
 	 * the game at all, so it must own its exit key; everything else gets
-	 * FInputModeGameAndUI and the world stays clickable behind it.
+	 * FInputModeGameAndUI and the world stays clickable behind it. Dialogue and
+	 * minigames are both modal stack widgets — neither is a special case here.
 	 *
-	 * With no widget and no minigame it installs whatever the top player mode
-	 * asks for via UPlayerModeBase::GetInputSpec — station and exploration are
-	 * no longer branches here. Minigames and widgets still take priority over
-	 * the mode stack; folding those onto it is a later stage.
+	 * With no widget open it installs whatever the top player mode asks for via
+	 * UPlayerModeBase::GetInputSpec.
 	 */
 	void RefreshInputMode();
 

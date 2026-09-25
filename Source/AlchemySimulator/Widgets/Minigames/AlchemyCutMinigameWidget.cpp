@@ -35,7 +35,9 @@ void UAlchemyCutMinigameWidget::NativeDestruct()
 void UAlchemyCutMinigameWidget::NativeOnFocusLost(const FFocusEvent& InFocusEvent)
 {
     Super::NativeOnFocusLost(InFocusEvent);
-    if (bIsRunning && !bFinished)
+    // IsMinigameClosed covers a cancel: the ring is still running when the stack
+    // tears the widget down, and a dying widget must not take focus back.
+    if (bIsRunning && !bFinished && !IsMinigameClosed())
     {
         SetFocus();
     }
@@ -51,6 +53,7 @@ FReply UAlchemyCutMinigameWidget::NativeOnKeyDown(
         return FReply::Handled();
     }
 
+    // Cancel keys and swallowing everything else live in the base class.
     return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }
 

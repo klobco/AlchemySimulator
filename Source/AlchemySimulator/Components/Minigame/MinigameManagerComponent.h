@@ -46,6 +46,16 @@ struct FPendingToolAction
 	}
 };
 
+/**
+ * Runs tool actions: picks the action, shows its minigame, and applies the result.
+ *
+ * The minigame widget itself lives on the ordinary widget stack as a modal widget
+ * — this component does not manage the viewport, Z-order or input mode. It only
+ * owns *which* minigame is running and *what* action it resolves. Every way a
+ * minigame can end (result, cancel key, StopMinigame, CloseAll on leaving the
+ * station) closes it through the stack, and HandleWidgetClosed is the single place
+ * that clears the state afterwards.
+ */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class ALCHEMYSIMULATOR_API UMinigameManagerComponent : public UActorComponent
 {
@@ -53,13 +63,6 @@ class ALCHEMYSIMULATOR_API UMinigameManagerComponent : public UActorComponent
 
 public:
 	UMinigameManagerComponent();
-
-	/**
-	 * Viewport Z-order for the active minigame. Must stay above the modal stack
-	 * (UWidgetStackManager::BaseZOrder + its depth), since a minigame is more
-	 * modal than anything on it.
-	 */
-	static constexpr int32 MinigameZOrder = 1000;
 
 protected:
 	virtual void BeginPlay() override;
@@ -81,13 +84,19 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Minigame")
     bool TryStartToolAction(UToolItemDefinition* Tool, AActor* Target, UPrimitiveComponent* HitComponent);
 
+    /**
+     * Push a minigame onto the widget stack, above whatever is open. Refuses (leaving
+     * GetActiveMinigameWidget null) under a modal widget — a dialogue, or another
+     * minigame — so callers treat a null widget as "not started".
+     */
     UFUNCTION(BlueprintCallable)
     void StartMinigame(TSubclassOf<UAlchemyMinigameWidget> MinigameWidgetClass);
 
+    /** Abandon the active minigame without a result. Its pending action is dropped. */
 	UFUNCTION(BlueprintCallable)
     void StopMinigame();
 
-    /** The minigame currently on screen, or null. Drives input-mode priority. */
+    /** The minigame currently on screen, or null. */
     UFUNCTION(BlueprintPure)
     UAlchemyMinigameWidget* GetActiveMinigameWidget() const { return ActiveMinigameWidget; }
 
@@ -100,5 +109,9 @@ private:
 
     UFUNCTION()
     void HandleMinigameResult(FMinigameResult Result);
+
+    /** Bound to the stack's OnWidgetPopped: the one place minigame state is cleared, whoever closed it. */
+    UFUNCTION()
+    void HandleWidgetClosed(UBaseGameWidget* Widget);
 
 };

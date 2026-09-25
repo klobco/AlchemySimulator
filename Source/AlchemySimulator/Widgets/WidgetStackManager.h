@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Components/SlateWrapperTypes.h"
 #include "WidgetStackManager.generated.h"
 
 class UBaseGameWidget;
@@ -21,6 +22,16 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWidgetStackChanged, UBaseGameWidg
  *   UMyWidget* W = CreateWidget<UMyWidget>(PC, MyWidgetClass);
  *   W->Setup(...);              // configure before pushing
  *   PC->PushWidget(W);         // manager takes it from here
+ *
+ * A modal widget (UBaseGameWidget::IsModal) blocks the widgets beneath it: they
+ * stay on screen but are made HitTestInvisible until it closes. FInputModeUIOnly
+ * only keeps input out of the *game* — Slate still routes clicks to any widget
+ * under the cursor — so without this a minigame over the table widget would let
+ * stray clicks reach the table.
+ *
+ * Every removal path (PopWidget, CloseWidget, CloseAll) broadcasts OnWidgetPopped,
+ * so an owner that needs to react to its widget closing binds that once instead
+ * of guessing which path closed it.
  */
 UCLASS(ClassGroup = (UI), meta = (BlueprintSpawnableComponent))
 class ALCHEMYSIMULATOR_API UWidgetStackManager : public UActorComponent
@@ -42,6 +53,15 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Widget Stack")
 	void PopWidget();
+
+	/**
+	 * Close one specific widget wherever it sits in the stack, bypassing CanClose.
+	 * For owners ending their own widget's lifetime (the minigame manager): PopWidget
+	 * takes whatever is on top, which is not necessarily the widget you mean.
+	 * Does nothing if the widget is not on the stack.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Widget Stack")
+	void CloseWidget(UBaseGameWidget* Widget);
 
 	/**
 	 * Close every widget unconditionally (bypasses CanClose).
@@ -68,6 +88,23 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UBaseGameWidget>> WidgetStack;
 
-	// Z-order for the first managed widget; each subsequent layer gets +1.
+	/**
+	 * Original visibility of each widget currently blocked by a modal widget above
+	 * it, restored when the modal closes or the widget itself is removed.
+	 */
+	UPROPERTY()
+	TMap<TObjectPtr<UBaseGameWidget>, ESlateVisibility> BlockedVisibility;
+
+	/** Remove the widget at Index: lifecycle, viewport, blocking, broadcast. Shared by every close path. */
+	void CloseAt(int32 Index);
+
+	/** Make everything beneath the top-most modal widget unclickable, and restore everything else. */
+	void UpdateModalBlocking();
+
+	// Z-order for the first managed widget; each subsequent push gets +1.
 	static constexpr int32 BaseZOrder = 100;
+
+	// Monotonic while the stack is non-empty, so a widget pushed after CloseWidget
+	// removed one from the middle can never share a Z-order with the one on top.
+	int32 NextZOrder = BaseZOrder;
 };
