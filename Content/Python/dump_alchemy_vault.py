@@ -43,8 +43,11 @@ TYPES = {
     ),
     "DataAssetProcessingMethod": (
         "06 Processing",
+        # Presentation.NameFormat is the player-facing wording ("Crushed {0}"), so it is design
+        # content. The rest of FProcessedPresentation -- Icon, WorldMesh, WorldMaterialOverride,
+        # WorldScale -- is presentation and deliberately stays out of the vault.
         ["DisplayName", "ProcessingTag", "GeneralPotencyMultiplier",
-         "ToxicityMultiplier", "StabilityMultiplier"],
+         "ToxicityMultiplier", "StabilityMultiplier", "Presentation.NameFormat"],
     ),
     "DataAssetDisease": (
         "05 Diseases",
@@ -88,7 +91,18 @@ def _candidates(cpp_name):
 
 
 def get_prop(obj, cpp_name):
-    """Read a UPROPERTY, tolerating engine-version naming differences."""
+    """Read a UPROPERTY, tolerating engine-version naming differences.
+
+    A dotted name walks into a USTRUCT member ("Presentation.NameFormat"), which is how a
+    field nested in a struct property gets into the frontmatter. Any missing link in the
+    chain yields None, same as a missing property."""
+    if "." in cpp_name:
+        for part in cpp_name.split("."):
+            if obj is None:
+                return None
+            obj = get_prop(obj, part)
+        return obj
+
     for name in _candidates(cpp_name):
         try:
             return obj.get_editor_property(name)
@@ -263,6 +277,7 @@ def extract(obj, cls_name, keys):
 
     for key in keys:
         raw = get_prop(obj, key)
+        key = key.rsplit(".", 1)[-1]
 
         if key in ("BaseEffects", "Substances", "TreatmentRequirements",
                    "EntryPoints", "Nodes"):
@@ -280,7 +295,7 @@ def extract(obj, cls_name, keys):
             data[key] = fmt_tag_container(raw)
         elif key == "ColorHint":
             data[key] = fmt_color(raw)
-        elif key == "DisplayName":
+        elif key in ("DisplayName", "NameFormat"):
             data[key] = str(raw) if raw is not None else ""
         elif isinstance(raw, bool):
             data[key] = raw

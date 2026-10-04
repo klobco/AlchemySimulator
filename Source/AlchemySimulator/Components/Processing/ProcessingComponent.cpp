@@ -24,6 +24,7 @@ FItemInstanceData UProcessingComponent::BuildProcessedInstance(
 
     Result.bIsProcessed = true;
     Result.ProcessingTags.AddTag(ProcessingMethod->ProcessingTag);
+    Result.AppliedMethods.Add(ProcessingMethod);
     Result.ProcessingQuality *= ClampedQuality;
     Result.ProcessingQuality *= ProcessingMethod->GeneralPotencyMultiplier;
 

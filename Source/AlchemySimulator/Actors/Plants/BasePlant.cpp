@@ -308,6 +308,7 @@ void ABasePlant::ApplyToolActionResult_Implementation(UToolItemDefinition* Tool,
 	NewInstance.bIsProcessed = false;
 	NewInstance.ProcessingQuality = 1.0f;
 	NewInstance.ProcessingTags.Reset();
+	NewInstance.AppliedMethods.Reset();
 
 	UInventoryComponent* Inv = nullptr;
 	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())

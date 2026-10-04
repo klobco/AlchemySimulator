@@ -231,8 +231,7 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 			SpawnedPlantPart->Tags.Empty();
 
 			// Applies the part's mesh, material override and scale from its data asset.
-			SpawnedPlantPart->SetPartDefinition(Cast<UDataAssetPlantPart>(CurrentSlot.Item.Get()));
-			SpawnedPlantPart->Instance = CurrentSlot.Instance;
+			SpawnedPlantPart->SetPartDefinition(Cast<UDataAssetPlantPart>(CurrentSlot.Item.Get()), CurrentSlot.Instance);
 
 			TArray<UStaticMeshComponent*> MeshComponents;
 			SpawnedPlantPart->GetComponents<UStaticMeshComponent>(MeshComponents);

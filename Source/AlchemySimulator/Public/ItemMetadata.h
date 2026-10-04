@@ -76,6 +76,11 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FPotionResult PotionResult;
+
+    /** Methods applied to this instance, in application order. Written only by
+     *  UProcessingComponent::BuildProcessedInstance, alongside ProcessingTags. */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<TObjectPtr<const UDataAssetProcessingMethod>> AppliedMethods;
 };
 
 USTRUCT(BlueprintType)

@@ -11,6 +11,7 @@
 #include "Widgets/Inventory/InventoryWidget.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "AlchemySimulatorPlayerController.h"
+#include "ItemDefinitions/ItemPresentationLibrary.h"
 #include "Components/TextBlock.h"
 
 
@@ -67,7 +68,7 @@ void UInventorySlotWidget::Rebuild() {
 	{
 		if (InvSlot.Item)
 		{
-			if (UTexture2D* Icon = InvSlot.Item->Icon)
+			if (UTexture2D* Icon = UItemPresentationLibrary::ResolveItemIcon(InvSlot.Instance, InvSlot.Item))
 			{
 				SlotImage->SetBrushFromTexture(Icon, true);
 				SlotImage->SetOpacity(1.f);
@@ -160,7 +161,7 @@ void UInventorySlotWidget::NativeOnDragDetected(const FGeometry& G, const FPoint
     Op->Pivot = EDragPivot::CenterCenter; 
 
     
-    UTexture2D* Icon = S.Item->Icon;
+    UTexture2D* Icon = UItemPresentationLibrary::ResolveItemIcon(S.Instance, S.Item);
     UImage* DragImg = NewObject<UImage>(this);
     FSlateBrush Brush;
     Brush.SetResourceObject(Icon);

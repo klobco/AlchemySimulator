@@ -13,6 +13,7 @@
 #include "Components/Processing/ProcessingComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "ItemDefinitions/ItemPresentationLibrary.h"
 #include "Materials/MaterialInterface.h"
 
 // Sets default values
@@ -53,9 +54,10 @@ void APlantPart::OnConstruction(const FTransform& Transform)
 	ApplyPartVisuals();
 }
 
-void APlantPart::SetPartDefinition(const UDataAssetPlantPart* InDef)
+void APlantPart::SetPartDefinition(const UDataAssetPlantPart* InDef, const FItemInstanceData& InInstance)
 {
 	Item = InDef;
+	Instance = InInstance;
 	ApplyPartVisuals();
 }
 
@@ -72,14 +74,19 @@ void APlantPart::ApplyPartVisuals()
 		return;
 	}
 
-	Body->SetStaticMesh(Item->WorldMesh);
+	UStaticMesh* Mesh = nullptr;
+	UMaterialInterface* Material = nullptr;
+	FVector Scale = FVector::OneVector;
 
-	if (Item->WorldMaterialOverride)
+	UItemPresentationLibrary::ResolveItemWorldVisuals(Instance, Item, Mesh, Material, Scale);
+	Body->SetStaticMesh(Mesh);
+
+	if (Material)
 	{
-		Body->SetMaterial(0, Item->WorldMaterialOverride);
+		Body->SetMaterial(0, Material);
 	}
 
-	SetActorScale3D(Item->WorldScale);
+	SetActorScale3D(Scale);
 }
 
 void APlantPart::HandleBeginCursorOver(UPrimitiveComponent* Component)

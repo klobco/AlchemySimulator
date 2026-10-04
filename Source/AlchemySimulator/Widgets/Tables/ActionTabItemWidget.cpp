@@ -5,6 +5,7 @@
 #include "Components/Button.h"
 #include "Components/TextBlock.h"
 #include "ItemDefinitions/ItemDefinitionBase.h"
+#include "ItemDefinitions/ItemPresentationLibrary.h"
 #include "Components/Image.h"
 
 void UActionTabItemWidget::NativeConstruct()
@@ -37,6 +38,6 @@ void UActionTabItemWidget::Refresh() {
 
     if (!ItemSlot.Item) return;
 
-    ItemName->SetText(ItemSlot.Item->DisplayName);
-    ItemIcon->SetBrushFromTexture(ItemSlot.Item->Icon, true);
+    ItemName->SetText(UItemPresentationLibrary::ResolveItemDisplayName(ItemSlot.Instance, ItemSlot.Item));
+    ItemIcon->SetBrushFromTexture(UItemPresentationLibrary::ResolveItemIcon(ItemSlot.Instance, ItemSlot.Item), true);
 }

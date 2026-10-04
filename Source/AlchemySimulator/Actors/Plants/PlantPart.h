@@ -43,7 +43,7 @@ public:
 	 * scale from it. One BP_PlantPart serves every harvested part in the game.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Item")
-	void SetPartDefinition(const UDataAssetPlantPart* InDef);
+	void SetPartDefinition(const UDataAssetPlantPart* InDef, const FItemInstanceData& InInstance);
 
 	UFUNCTION()
 	void HandleBeginCursorOver(UPrimitiveComponent* Component);
