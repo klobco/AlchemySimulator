@@ -11,6 +11,7 @@
 #include "DrawDebugHelpers.h"
 #include "Actors/Plants/PlantPart.h"
 #include "DataAssets/DataAssetPlantPart.h"
+#include "Tags/AlchemyGameplayTags.h"
 #include "Actors/Stations/BasicWorkbench.h"
 
 ABasicWorkbench::ABasicWorkbench() {
@@ -120,13 +121,16 @@ void ABasicWorkbench::RemoveTool(ABaseTool* tool) {
 	tool->Destroy();
 }
 
-bool ABasicWorkbench::CanAcceptDraggedItem(const UItemDefinitionBase* ItemDef) const
+bool ABasicWorkbench::CanAcceptDraggedItem(const UItemDefinitionBase* ItemDef, const FItemInstanceData& Instance) const
 {
 	if (!ItemDef) return false;
 
-	// Tu si daj vlastnú logiku:
-	// napr. povolíš len byliny, tools, potion ingredients, atď.
-	return true;
+	if (Instance.ProcessingTags.IsEmpty() || Instance.ProcessingTags.HasTagExact(TAG_Processing_Cut) || Instance.ProcessingTags.HasTagExact(TAG_Processing_Dried))
+	{
+		return true;
+	}
+
+	return false;
 }
 
 bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitResult& Hit)
@@ -138,6 +142,7 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 	if (HerbsOnTable.Num() >= 2) return false;
 
 	const UItemDefinitionBase* ItemDef = DragOp->SlotSnapshot.Item;
+	const FItemInstanceData& Instance = DragOp->SlotSnapshot.Instance;
 	if (!ItemDef) return false;
 	if (ItemDef->Category != EItemCategory::Herb &&
 		ItemDef->Category != EItemCategory::Ingredient)
@@ -145,7 +150,7 @@ bool ABasicWorkbench::TryPlaceDraggedItem(UInvDragOperation* DragOp, const FHitR
 		return false;
 	}
 
-	if (!CanAcceptDraggedItem(ItemDef))
+	if (!CanAcceptDraggedItem(ItemDef,Instance))
 	{
 		return false;
 	}

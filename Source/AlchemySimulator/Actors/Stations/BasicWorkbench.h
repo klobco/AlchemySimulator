@@ -42,7 +42,7 @@ public:
 	bool RemoveHerbItem(AActor* HerbToRemove);
 
 	UFUNCTION(BlueprintCallable)
-	bool CanAcceptDraggedItem(const class UItemDefinitionBase* ItemDef) const;
+	bool CanAcceptDraggedItem(const class UItemDefinitionBase* ItemDef, const FItemInstanceData& Instance) const;
 
 	UPROPERTY(EditAnywhere, Category = "herbs")
 	TArray<class AActor*> HerbsOnTable;

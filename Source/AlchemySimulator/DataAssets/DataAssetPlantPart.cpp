@@ -4,6 +4,7 @@
 #include "DataAssets/DataAssetPlantPart.h"
 
 #include "DataAssets/DataAssetProcessingMethod.h"
+#include "Tags/AlchemyGameplayTags.h"
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
@@ -71,31 +72,24 @@ EDataValidationResult UDataAssetPlantPart::IsDataValid(FDataValidationContext& C
 
 	// Wrong-family tags: MatchesTag is hierarchy-aware, so this keeps working as new children are
 	// added under either root. Catches picking a tag from the wrong branch of the picker.
-	const FGameplayTag ToolActionRoot = FGameplayTag::RequestGameplayTag(TEXT("ToolAction"), false);
-	if (ToolActionRoot.IsValid())
+	// The roots are native tags, so they cannot be missing — the IsValid() guards are gone.
+	for (const FGameplayTag& Tag : AcceptedToolActions)
 	{
-		for (const FGameplayTag& Tag : AcceptedToolActions)
+		if (!Tag.MatchesTag(TAG_ToolAction))
 		{
-			if (!Tag.MatchesTag(ToolActionRoot))
-			{
-				Context.AddWarning(FText::Format(LOCTEXT("BadToolActionTag",
-					"AcceptedToolActions contains '{0}', which is not a ToolAction.* tag. It will never match any tool action."),
-					FText::FromName(Tag.GetTagName())));
-			}
+			Context.AddWarning(FText::Format(LOCTEXT("BadToolActionTag",
+				"AcceptedToolActions contains '{0}', which is not a ToolAction.* tag. It will never match any tool action."),
+				FText::FromName(Tag.GetTagName())));
 		}
 	}
 
-	const FGameplayTag ProcessingRoot = FGameplayTag::RequestGameplayTag(TEXT("Processing"), false);
-	if (ProcessingRoot.IsValid())
+	for (const FGameplayTag& Tag : AllowedProcessingTags)
 	{
-		for (const FGameplayTag& Tag : AllowedProcessingTags)
+		if (!Tag.MatchesTag(TAG_Processing))
 		{
-			if (!Tag.MatchesTag(ProcessingRoot))
-			{
-				Context.AddWarning(FText::Format(LOCTEXT("BadProcessingTag",
-					"AllowedProcessingTags contains '{0}', which is not a Processing.* tag. It will never match any processing method."),
-					FText::FromName(Tag.GetTagName())));
-			}
+			Context.AddWarning(FText::Format(LOCTEXT("BadProcessingTag",
+				"AllowedProcessingTags contains '{0}', which is not a Processing.* tag. It will never match any processing method."),
+				FText::FromName(Tag.GetTagName())));
 		}
 	}
 

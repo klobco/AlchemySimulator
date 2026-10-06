@@ -4,6 +4,7 @@
 #include "DataAssets/DataAssetSubstanceDefinition.h"
 #include "DataAssets/DataAssetAlchemyEfectDefinition.h"
 #include "GameplayTagContainer.h"
+#include "Tags/AlchemyGameplayTags.h"
 #include "Subsystems/AlchemyCalculationSubsystem.h"
 
 FPotionResult UAlchemyCalculationSubsystem::CalculatePotionFromSlots(
@@ -151,26 +152,18 @@ float UAlchemyCalculationSubsystem::GetProcessingMultiplier(
 
     float Multiplier = 1.0f;
 
-    const FGameplayTag DriedTag =
-        FGameplayTag::RequestGameplayTag(TEXT("Processing.Dried"), false);
-
-    const FGameplayTag BoiledTag =
-        FGameplayTag::RequestGameplayTag(TEXT("Processing.Boiled"), false);
-
-    const FGameplayTag CrushedTag =
-        FGameplayTag::RequestGameplayTag(TEXT("Processing.Crushed"), false);
-
-    if (DriedTag.IsValid() && Instance.ProcessingTags.HasTagExact(DriedTag))
+    // Native tags are always valid, so the IsValid() guards these checks used to carry are gone.
+    if (Instance.ProcessingTags.HasTagExact(TAG_Processing_Dried))
     {
         Multiplier *= Substance->DryingStability;
     }
 
-    if (BoiledTag.IsValid() && Instance.ProcessingTags.HasTagExact(BoiledTag))
+    if (Instance.ProcessingTags.HasTagExact(TAG_Processing_Boiled))
     {
         Multiplier *= Substance->HeatStability;
     }
 
-    if (CrushedTag.IsValid() && Instance.ProcessingTags.HasTagExact(CrushedTag))
+    if (Instance.ProcessingTags.HasTagExact(TAG_Processing_Crushed))
     {
         Multiplier *= Substance->CrushingStability;
     }
