@@ -3,6 +3,15 @@
 
 #include "Components/Inventory/InventoryComponent.h"
 #include "ItemDefinitions/ItemDefinitionBase.h"
+#include "ItemDefinitions/PlantItemDefinition.h"
+#include "ItemDefinitions/ToolItemDefinition.h"
+#include "ItemDefinitions/PotionItemDefinition.h"
+#include "DataAssets/DataAssetPlantPart.h"
+#include "Actors/Plants/BasePlant.h"
+#include "Actors/Plants/PlantPart.h"
+#include "Actors/Tools/BaseTool.h"
+#include "Actors/Potions/BasePotion.h"
+#include "Components/PrimitiveComponent.h"
 
 // Sets default values for this component's properties
 UInventoryComponent::UInventoryComponent()
@@ -410,4 +419,87 @@ int32 UInventoryComponent::CountNonEmptySlots() {
 	}
 
 	return NonEmptySlots;
+}
+
+bool UInventoryComponent::TryDropItemToWorld(int32 FromIdx, int32 Quantity)
+{
+	if (!Slots.IsValidIndex(FromIdx) || Quantity <= 0) return false;
+
+	AActor* OwnerActor = GetOwner();
+	UWorld* World = GetWorld();
+	if (!OwnerActor || !World) return false;
+
+	// Nothing to spawn without a WorldItem class, and the slot must stay untouched in that case —
+	// removing first would delete the item outright.
+	const FInventorySlot& SourceSlot = Slots[FromIdx];
+	if (SourceSlot.IsEmpty() || !SourceSlot.Item->WorldItem) return false;
+
+	FInventorySlot outSlot = FInventorySlot{};
+	if (!RemoveAt(FromIdx, Quantity, outSlot)) return false;
+
+	// RemoveAt reports what it actually took, which can be less than Quantity.
+	const int32 DropCount = outSlot.Quantity;
+
+	// One actor for the whole stack: the world actors carry a Quantity, and picking one up returns
+	// all of it. Ten herbs are one pile on the ground, not ten actors fighting the physics solver.
+	const FVector SpawnLocation = OwnerActor->GetActorLocation()
+		+ OwnerActor->GetActorForwardVector() * DropForwardDistance
+		+ FVector(0.f, 0.f, DropHeightOffset);
+
+	FActorSpawnParameters Params;
+	Params.Owner = OwnerActor;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	AActor* SpawnedActor = World->SpawnActor<AActor>(
+		outSlot.Item->WorldItem,
+		SpawnLocation,
+		outSlot.Item->WorldTableRotation,
+		Params
+	);
+
+	// Never silently eat the items a refused spawn would have carried.
+	if (!SpawnedActor)
+	{
+		AddItem(outSlot.Item.Get(), DropCount, outSlot.Instance);
+		return false;
+	}
+
+	// Push the definition, instance and stack count onto the spawned actor so picking it back up
+	// returns exactly what was dropped. Each world actor type stores them on its own member; there
+	// is no shared base holding them, so this dispatch is unavoidable (the workbench does the same).
+	if (ABasePlant* SpawnedPlant = Cast<ABasePlant>(SpawnedActor))
+	{
+		// Builds the harvestable part components and applies WorldScale.
+		SpawnedPlant->InitializeFromDefinition(Cast<UPlantItemDefinition>(outSlot.Item.Get()), outSlot.Instance);
+		SpawnedPlant->Quantity = DropCount;
+		SpawnedPlant->HerbStatus = EHerbStatus::OnStand;
+	}
+	else if (APlantPart* SpawnedPart = Cast<APlantPart>(SpawnedActor))
+	{
+		SpawnedPart->SetPartDefinition(Cast<UDataAssetPlantPart>(outSlot.Item.Get()), outSlot.Instance);
+		SpawnedPart->Quantity = DropCount;
+		SpawnedPart->HerbStatus = EHerbStatus::OnStand;
+	}
+	else if (ABaseTool* SpawnedTool = Cast<ABaseTool>(SpawnedActor))
+	{
+		SpawnedTool->Item = const_cast<UToolItemDefinition*>(Cast<UToolItemDefinition>(outSlot.Item.Get()));
+		SpawnedTool->Instance = outSlot.Instance;
+		SpawnedTool->Quantity = DropCount;
+	}
+	else if (ABasePotion* SpawnedPotion = Cast<ABasePotion>(SpawnedActor))
+	{
+		SpawnedPotion->Item = const_cast<UPotionItemDefinition*>(Cast<UPotionItemDefinition>(outSlot.Item.Get()));
+		SpawnedPotion->Instance = outSlot.Instance;
+		SpawnedPotion->Quantity = DropCount;
+	}
+
+	// Let it fall and settle wherever the player is standing. Root-only, matching the plant rule
+	// that only the root body simulates and the generated parts ride it.
+	if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(SpawnedActor->GetRootComponent()))
+	{
+		RootPrim->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		RootPrim->SetSimulatePhysics(true);
+	}
+
+	return true;
 }

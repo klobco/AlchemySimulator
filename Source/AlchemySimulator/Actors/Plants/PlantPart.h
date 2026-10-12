@@ -26,6 +26,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	FItemInstanceData Instance;
 
+	/**
+	 * How many inventory units this one actor stands for. 1 for a freshly harvested part or one
+	 * placed on a workbench; a stack dropped out of an inventory spawns a single actor carrying
+	 * the whole count. Processing assumes 1, which holds because the workbench drag path only
+	 * ever moves one unit onto the table.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item", meta = (ClampMin = "1"))
+	int32 Quantity = 1;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	TObjectPtr<const UDataAssetPlantPart> Item;
 

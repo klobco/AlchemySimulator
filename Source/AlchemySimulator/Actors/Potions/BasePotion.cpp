@@ -57,7 +57,7 @@ void ABasePotion::Interact_Implementation(APawn* By)
 	//UE_LOG(LogTemp, Error, TEXT("Inventory owner: %s"), *player->inventory->GetOwner()->GetName());
 	if (player && player->inventory != nullptr)
 	{
-		if (player->inventory->AddItem(Item, 1, Instance)) {
+		if (player->inventory->AddItem(Item, Quantity, Instance)) {
 			Destroy();
 			UE_LOG(LogTemp, Error, TEXT("Adding tool : %s"), *GetNameSafe(Item));
 		}

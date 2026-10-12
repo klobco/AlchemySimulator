@@ -44,6 +44,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	FItemInstanceData Instance;
 
+	/**
+	 * How many inventory units this one actor stands for. 1 for a plant placed in the level or
+	 * put on a workbench; a stack dropped out of an inventory spawns a single actor carrying the
+	 * whole count, and picking it up returns all of it.
+	 *
+	 * Cutting assumes 1 — the workbench drag path only ever moves one unit onto the table, so a
+	 * stacked actor never becomes OnTable.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item", meta = (ClampMin = "1"))
+	int32 Quantity = 1;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
 	UMaterialInstance* OverlayMaterialInstance;
 

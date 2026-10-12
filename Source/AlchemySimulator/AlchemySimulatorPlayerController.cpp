@@ -35,6 +35,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "PlayerModes/PlayerModeBase.h"
 #include "PlayerModes/ExplorationPlayerMode.h"
+#include "Components/Inventory/InventoryComponent.h"
 #include "PlayerModes/StationPlayerMode.h"
 #include "InputAction.h"
 
@@ -751,12 +752,14 @@ bool AAlchemySimulatorPlayerController::TryHandleWorldDropFromScreenPosition(UIn
 
 	if (UPrimitiveComponent* HitComp = Hit.GetComponent())
 	{
-		if (HitComp->ComponentHasTag(TEXT("WorkbenchDropZone")))
+		if (HitComp->ComponentHasTag(TEXT("WorkbenchDropZone")) && GetCurrentStation())
 		{
 			if (ABasicWorkbench* Workbench = Cast<ABasicWorkbench>(HitComp->GetOwner()))
 			{
 				return Workbench->TryPlaceDraggedItem(DragOp, Hit);
 			}
+		}else if (GetCurrentStation() == nullptr){
+			DragOp->SourceInventory->TryDropItemToWorld(DragOp->FromIndex, DragOp->Quantity);
 		}
 	}
 

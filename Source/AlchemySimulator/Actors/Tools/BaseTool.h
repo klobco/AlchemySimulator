@@ -27,6 +27,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "tool")
 	FItemInstanceData Instance;
 
+	/**
+	 * How many inventory units this one actor stands for. 1 everywhere except a stack dropped
+	 * out of an inventory, which spawns a single actor carrying the whole count.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "tool", meta = (ClampMin = "1"))
+	int32 Quantity = 1;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
 	UMaterialInstance* OverlayMaterialInstance;
 

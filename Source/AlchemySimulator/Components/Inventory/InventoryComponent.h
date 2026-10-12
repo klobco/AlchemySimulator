@@ -31,6 +31,17 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
     TArray<EItemCategory> CategoryWhitelist;
 
+    // Where TryDropItemToWorld puts the spawned actor, relative to the owner.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory|Drop")
+    float DropForwardDistance = 100.f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory|Drop")
+    float DropHeightOffset = 20.f;
+
+    /** Sideways spacing between the actors of a dropped stack, so they do not spawn inside each other. */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory|Drop")
+    float DropSideStep = 25.f;
+
     // Read-only access (UI)
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     const TArray<FInventorySlot>& GetSlots() const { return Slots; }
@@ -82,6 +93,10 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Inventory")
     int32 CountNonEmptySlots();
+
+    UFUNCTION(BlueprintCallable, Category = "Inventory")
+    bool TryDropItemToWorld(int32 FromIdx, int32 Quantity);
+
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;

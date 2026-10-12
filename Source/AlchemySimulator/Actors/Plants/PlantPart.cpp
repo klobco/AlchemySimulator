@@ -201,7 +201,8 @@ void APlantPart::Interact_Implementation(APawn* By)
 	AAlchemySimulatorCharacter* player = Cast<AAlchemySimulatorCharacter>(By);
 	if (player && player->inventory != nullptr)
 	{
-		if (player->inventory->AddItem(Item, 1, Instance)) {
+		// All-or-nothing: a full inventory leaves the whole stack on the ground.
+		if (player->inventory->AddItem(Item, Quantity, Instance)) {
 			Destroy();
 		}
 	}

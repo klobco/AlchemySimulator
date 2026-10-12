@@ -379,7 +379,9 @@ void ABasePlant::Interact_Implementation(APawn* By)
 	//UE_LOG(LogTemp, Error, TEXT("Inventory owner: %s"), *player->inventory->GetOwner()->GetName());
 	if (player && player->inventory != nullptr)
 	{
-		if (player->inventory->AddItem(Item, 1, Instance)) {
+		// AddItem is all-or-nothing for stackables, so a full inventory leaves the whole stack
+		// standing in the world rather than losing part of it.
+		if (player->inventory->AddItem(Item, Quantity, Instance)) {
 			Destroy();
 		}
 	}

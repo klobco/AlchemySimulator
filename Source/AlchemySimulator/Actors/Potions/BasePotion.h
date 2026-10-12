@@ -29,6 +29,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "potion")
 	FItemInstanceData Instance;
 
+	/**
+	 * How many inventory units this one actor stands for. Always 1 for potions in practice
+	 * (UPotionItemDefinition is non-stackable), kept for symmetry with the other world items.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "potion", meta = (ClampMin = "1"))
+	int32 Quantity = 1;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
