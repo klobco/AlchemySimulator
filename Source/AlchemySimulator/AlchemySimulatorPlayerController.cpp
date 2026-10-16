@@ -36,6 +36,7 @@
 #include "PlayerModes/PlayerModeBase.h"
 #include "PlayerModes/ExplorationPlayerMode.h"
 #include "Components/Inventory/InventoryComponent.h"
+#include "Widgets/Indicators/InteractionIndicatorWidget.h"
 #include "PlayerModes/StationPlayerMode.h"
 #include "InputAction.h"
 
@@ -68,6 +69,33 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 	{
 		WidgetManager->OnWidgetPushed.AddDynamic(this, &AAlchemySimulatorPlayerController::HandleWidgetStackChanged);
 		WidgetManager->OnWidgetPopped.AddDynamic(this, &AAlchemySimulatorPlayerController::HandleWidgetStackChanged);
+	}
+
+	// Outered to this controller, not the world, so GetOwningPlayer() resolves to
+	// us rather than to whoever happens to be local player 0.
+	if (InteractionIndicatorWidgetClass)
+	{
+		InteractionIndicatorWidget = CreateWidget<UInteractionIndicatorWidget>(this, InteractionIndicatorWidgetClass);
+		if (InteractionIndicatorWidget)
+		{
+			InteractionIndicatorWidget->AddToViewport();
+			InteractionIndicatorWidget->SetVisibility(ESlateVisibility::Hidden);
+		}
+		else
+		{
+			// CreateWidget reports a bad class through FMessageLog("PIE") only,
+			// so without this the output log stays clean and a missing indicator
+			// looks like a logic bug instead of a misconfigured asset.
+			UE_LOG(LogAlchemySimulator, Warning,
+				TEXT("[Interaction] CreateWidget failed for InteractionIndicatorWidgetClass %s - check the PIE message log (abstract, deprecated or REINST class?)"),
+				*GetNameSafe(InteractionIndicatorWidgetClass));
+		}
+	}
+	else
+	{
+		UE_LOG(LogAlchemySimulator, Warning,
+			TEXT("[Interaction] InteractionIndicatorWidgetClass is unset on %s - no interaction indicator will ever show."),
+			*GetNameSafe(this));
 	}
 
 
@@ -145,6 +173,57 @@ void AAlchemySimulatorPlayerController::OnFocusedChanged(UObject* NewObj, UObjec
 		*GetNameSafe(OldObj)
 	);
 	CurrentTarget = NewObj;
+
+	// Show or hide on the event rather than a frame later, so losing focus
+	// cannot leave the ring on screen for a tick.
+	UpdateInteractionIndicator();
+}
+
+AActor* AAlchemySimulatorPlayerController::GetFocusedActor() const
+{
+	AActor* Target = Cast<AActor>(CurrentTarget.GetObject());
+	return IsValid(Target) ? Target : nullptr;
+}
+
+void AAlchemySimulatorPlayerController::UpdateInteractionIndicator()
+{
+	if (!InteractionIndicatorWidget)
+	{
+		return;
+	}
+
+	AActor* Target = GetFocusedActor();
+	APawn* MyPawn = GetPawn();
+
+	ESlateVisibility Desired = ESlateVisibility::Hidden;
+
+	// Detector dies with the pawn and the pawn is null between unpossess and
+	// respawn, both of which are reachable while a focus target is still set.
+	if (Target && MyPawn && Detector)
+	{
+		// Measured the way the detector scores candidates - eye point to the
+		// interface's own interact location - or the ring would sit at the actor
+		// pivot and its distance scale would saturate on the wrong side of the
+		// focus boundary.
+		FVector EyeLoc; FRotator EyeRot;
+		MyPawn->GetActorEyesViewPoint(EyeLoc, EyeRot);
+		const FVector TargetLoc = IInteractable::Execute_GetInteractWorldLocation(Target);
+
+		const bool bOnScreen = InteractionIndicatorWidget->RepositionIndicator(
+			TargetLoc,
+			FVector::Distance(TargetLoc, EyeLoc),
+			Detector->Radius
+		);
+
+		// HitTestInvisible, never Visible: the ring is drawn over the world and
+		// would otherwise swallow the world click underneath it.
+		Desired = bOnScreen ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden;
+	}
+
+	if (InteractionIndicatorWidget->GetVisibility() != Desired)
+	{
+		InteractionIndicatorWidget->SetVisibility(Desired);
+	}
 }
 
 void AAlchemySimulatorPlayerController::DoInteract()
@@ -866,6 +945,10 @@ void AAlchemySimulatorPlayerController::RotateDraggedItem(const FInputActionValu
 void AAlchemySimulatorPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+
+	// Per-frame because the camera moves under a stationary target. Visibility is
+	// derived in the same place, not set here.
+	UpdateInteractionIndicator();
 
 	if (!bIsDraggingWorldActor || !DraggedActor)
 	{

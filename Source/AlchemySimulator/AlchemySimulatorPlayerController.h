@@ -105,6 +105,29 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction")
 	TScriptInterface<class IInteractable> CurrentTarget;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
+	TSubclassOf<class UInteractionIndicatorWidget> InteractionIndicatorWidgetClass;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Interaction")
+	TObjectPtr<UInteractionIndicatorWidget> InteractionIndicatorWidget = nullptr;
+
+	/**
+	 * The focused target as an actor, or null.
+	 *
+	 * The only honest way to read CurrentTarget: its bool operator tests a raw
+	 * InterfacePointer that GC never clears, so it stays true after the focused
+	 * actor is destroyed, and it is false for Blueprint-only implementers of
+	 * IInteractable - which the detector focuses perfectly happily.
+	 */
+	AActor* GetFocusedActor() const;
+
+	/**
+	 * Single owner of the interaction indicator's visibility and position.
+	 * Derives both from current state and is idempotent, so the focus event and
+	 * PlayerTick can both call it - the same shape as RefreshInputMode.
+	 */
+	void UpdateInteractionIndicator();
+
 	UFUNCTION()
 	void OnFocusedChanged(UObject* NewObj, UObject* OldObj);
 

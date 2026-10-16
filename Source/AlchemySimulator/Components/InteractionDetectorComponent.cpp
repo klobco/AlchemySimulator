@@ -141,6 +141,18 @@ void UInteractionDetectorComponent::TickDetect()
 	const bool bNextValid = IsValid(Next);
 	const bool bChanged = (!bPrevValid) || (Prev != Next);
 
+	// A focused actor that was destroyed (picked up, harvested) leaves Prev null,
+	// because Current is weak - so the change below cannot see that there was
+	// ever a target and never reports losing it. Listeners would keep holding
+	// the dead actor forever. Only report it when nothing replaces it; a
+	// replacement broadcasts (Next, nullptr) below and corrects them anyway.
+	if (!bPrevValid && !bNextValid && !Current.IsExplicitlyNull())
+	{
+		Current = nullptr;
+		// OldTarget is genuinely gone, so there is nothing honest to hand over.
+		OnFocusedChanged.Broadcast(nullptr, nullptr);
+	}
+
 	if (bChanged)
 	{
 		//UE_LOG(LogTemp, Error, TEXT("Try to interact with object 1"));
@@ -164,10 +176,13 @@ void UInteractionDetectorComponent::TickDetect()
 		}
 	}
 
-	if (!Current.IsValid())
-	{
-		Current = nullptr;
-	}
+	// Deliberately no "if (!Current.IsValid()) Current = nullptr;" here. Nulling a
+	// dead weak pointer behind the listeners' back is what hid the destroyed-focus
+	// case: the next tick could no longer tell "never had a target" from "the
+	// target died". The invariant is now that Current is explicitly null only
+	// once listeners have been told focus is nothing - the three paths that null
+	// it (the destroyed-focus check, the focus change, ClearCurrent) all
+	// broadcast first.
 }
 
 void UInteractionDetectorComponent::SetDetectionEnabled(bool bEnabled)
