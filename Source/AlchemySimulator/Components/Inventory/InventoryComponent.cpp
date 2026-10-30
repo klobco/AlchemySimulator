@@ -7,6 +7,7 @@
 #include "ItemDefinitions/ToolItemDefinition.h"
 #include "ItemDefinitions/PotionItemDefinition.h"
 #include "DataAssets/DataAssetPlantPart.h"
+#include "DataAssets/DataAssetDryingProfile.h"
 #include "Actors/Plants/BasePlant.h"
 #include "Actors/Plants/PlantPart.h"
 #include "Actors/Tools/BaseTool.h"
@@ -36,114 +37,67 @@ void UInventoryComponent::BeginPlay()
 		Slots.SetNum(MaxSlots);
 	}
 
-	UE_LOG(LogTemp, Error, TEXT("Slots: %i"),Slots.Num());
+	// Name the owner and the component: a bare count cannot be attributed when several
+	// inventories exist in one level (two workbenches x two each, the rack, the player).
+	UE_LOG(LogTemp, Log, TEXT("[Inventory] %s.%s: %d slots (MaxSlots %d, StackSizeLimit %d)"),
+		*GetNameSafe(GetOwner()), *GetName(), Slots.Num(), MaxSlots, StackSizeLimit);
 }
 
 
 bool UInventoryComponent::AddItem(const UItemDefinitionBase* Item, int32 Quantity, const FItemInstanceData& Instance) {
 
-	if (!CategoryWhitelist.IsEmpty() && !CategoryWhitelist.Contains(Item->Category)) return false;
-
-	if (Item == nullptr)
+	// Null check first: the whitelist test dereferences Item->Category.
+	if (Item == nullptr || Quantity <= 0)
 	{
 		return false;
 	}
 
-	UE_LOG(LogTemp, Error, TEXT("Adding item"));
+	if (!CategoryWhitelist.IsEmpty() && !CategoryWhitelist.Contains(Item->Category)) return false;
 
-	if (!Item->bStackable) {
-		int32 nonStackableIndex = FindFirstEmptySlotIndex();
-		if (nonStackableIndex != -1)
-		{
-			FInventorySlot slot;
-
-			slot.Instance = Instance;
-			slot.Item = Item;
-			slot.Quantity = Quantity;
-
-			Slots[nonStackableIndex] = slot;
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("Inventory full"));
-			return false;
-		}
-	}
-	else
+	// One path for stackable and non-stackable alike: a non-stackable item simply has an
+	// effective cap of 1, so the fill loops below place one per slot. The old separate
+	// branch ignored MaxStackSize and wrote the whole Quantity into a single slot.
+	if (FreeStorageForItem(Item, Instance) < Quantity)
 	{
-		if (FreeStorageForItem(Item, Instance) >= Quantity)
-		{
-			int32 ItemsToAdd = Quantity;
-			while (true)
-			{
-				int32 StackSlot = FindFirstStackableSlotIndex(Item, Instance);
-
-				if (StackSlot != -1)
-				{
-					int32 addNumber = Slots[StackSlot].Item->MaxStackSize - Slots[StackSlot].Quantity;
-
-					if (addNumber < ItemsToAdd)
-					{
-						Slots[StackSlot].Quantity += addNumber;
-						ItemsToAdd -= addNumber;
-					}
-					else
-					{
-						Slots[StackSlot].Quantity += ItemsToAdd;
-						ItemsToAdd = 0;
-						break;
-					}
-
-				}
-				else {
-					break;
-				}
-			}
-			if (ItemsToAdd > 0)
-			{
-				while (true)
-				{
-					int32 StackSlot2 = FindFirstEmptySlotIndex();
-
-					if (StackSlot2 != -1)
-					{
-						int32 addNumber2 = Item->MaxStackSize;
-
-						FInventorySlot slot;
-
-						slot.Instance = Instance;
-						slot.Item = Item;
-
-						if (addNumber2 < ItemsToAdd)
-						{
-							slot.Quantity += addNumber2;
-							Slots[StackSlot2] = slot;
-							ItemsToAdd -= addNumber2;
-						}
-						else
-						{
-							slot.Quantity += ItemsToAdd;
-							Slots[StackSlot2] = slot;
-							ItemsToAdd = 0;
-							break;
-						}
-
-					}
-					else {
-						break;
-					}
-				}
-
-			}
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("Inventory full"));
-			return false;
-		}
+		UE_LOG(LogTemp, Error, TEXT("Inventory full"));
+		return false;
 	}
 
-	OnInventoryChanged.Broadcast();
+	const int32 Cap = GetEffectiveMaxStackSize(Item);
+	int32 ItemsToAdd = Quantity;
+
+	// Top up existing part-filled stacks first.
+	while (ItemsToAdd > 0)
+	{
+		const int32 StackSlot = FindFirstStackableSlotIndex(Item, Instance);
+		if (StackSlot == -1) break;
+
+		const int32 AddNumber = FMath::Min(Cap - Slots[StackSlot].Quantity, ItemsToAdd);
+		if (AddNumber <= 0) break;
+
+		Slots[StackSlot].Quantity += AddNumber;
+		ItemsToAdd -= AddNumber;
+	}
+
+	// Then open fresh slots, Cap at a time.
+	while (ItemsToAdd > 0)
+	{
+		const int32 EmptySlot = FindFirstEmptySlotIndex();
+		if (EmptySlot == -1) break;
+
+		FInventorySlot NewSlot;
+		NewSlot.Instance = Instance;
+		NewSlot.Item = Item;
+		NewSlot.Quantity = FMath::Min(Cap, ItemsToAdd);
+
+		Slots[EmptySlot] = NewSlot;
+		ItemsToAdd -= NewSlot.Quantity;
+	}
+
+	// One add can touch several slots, so no single index is honest - INDEX_NONE means
+	// "full refresh". The old GetSlotIndex(Item) reported the first slot holding that
+	// definition, which was rarely the slot that changed.
+	OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemAdded, INDEX_NONE);
 	return true;
 }
 
@@ -156,7 +110,7 @@ bool UInventoryComponent::RemoveSlotAtIndex(int32 Index)
 	if (!Slots.IsValidIndex(Index) || Slots[Index].IsEmpty()) return false;
 
 	Slots[Index] = FInventorySlot();
-	OnInventoryChanged.Broadcast();
+	OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemRemoved, Index);
 	return true;
 }
 
@@ -180,11 +134,11 @@ bool UInventoryComponent::RemoveAt(int32 FromIdx, int32 Quantity, FInventorySlot
 	if (S.Quantity <= 0)
 	{
 		Slots[FromIdx] = FInventorySlot{};
-		OnInventoryChanged.Broadcast();
-		return true;
 	}
 
-	OnInventoryChanged.Broadcast();
+	// Both paths are removals, and both must report: emptying the last herb out of a slot
+	// is the event a listener most needs, and it used to return before broadcasting.
+	OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemRemoved, FromIdx);
 	return true;
 }
 
@@ -197,7 +151,7 @@ bool UInventoryComponent::RemoveSlotItem(const FInventorySlot Item) {
 		if (Slots[i].Item == Item.Item && Slots[i].Instance.Quality == Item.Instance.Quality)
 		{
 			Slots[i] = FInventorySlot();
-			OnInventoryChanged.Broadcast();
+			OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemRemoved, i);
 			return true;
 		}
 	}
@@ -217,14 +171,43 @@ int32 UInventoryComponent::CountItem(const UItemDefinitionBase* Item, const FIte
 bool UInventoryComponent::CanStackTogether(const FInventorySlot& A, const FInventorySlot& B) const {
 
     if (!A.Item || !B.Item) return false;
-    if (!A.Item->bStackable || !B.Item->bStackable) return false;
     if (A.Item != B.Item) return false;
+    // Same definition by now, so one query covers both slots. A cap of 1 means this
+    // container never merges - the drying rack's one-per-hook rule.
+    if (GetEffectiveMaxStackSize(A.Item) <= 1) return false;
+
+    // Drying compares the resolved STAGE, not the raw DryingMinutes: two leaves hung a minute
+    // apart would otherwise never merge and the bag fills up with near-identical stacks. The
+    // stage is also what the player actually sees. A merge keeps the destination slot's Instance
+    // (every merge path only adds Quantity), so the incoming item adopts the destination's
+    // progress within the band.
+    int32 StageA = INDEX_NONE;
+    int32 StageB = INDEX_NONE;
+    float ProgressUnused = 0.f;
+    UDataAssetDryingProfile::ResolveStageFor(A.Instance, A.Item, StageA, ProgressUnused);
+    UDataAssetDryingProfile::ResolveStageFor(B.Instance, B.Item, StageB, ProgressUnused);
+    if (StageA != StageB) return false;
 
     return A.Instance.Quality == B.Instance.Quality
         && FMath::IsNearlyEqual(A.Instance.Freshness, B.Instance.Freshness)
         && A.Instance.ProcessingTags == B.Instance.ProcessingTags
         && FMath::IsNearlyEqual(A.Instance.ProcessingQuality, B.Instance.ProcessingQuality)
         && A.Instance.bIsPotion == B.Instance.bIsPotion;
+}
+
+bool UInventoryComponent::UpdateSlotInstance(int32 Index, const FItemInstanceData& Instance)
+{
+    if (!Slots.IsValidIndex(Index) || Slots[Index].IsEmpty())
+    {
+        return false;
+    }
+
+    Slots[Index].Instance = Instance;
+
+    // One slot changed, so the index goes out with it: a listener that rebuilt everything here
+    // would tear down and recreate its whole grid on every game minute a rack is running.
+    OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemUpdated, Index);
+    return true;
 }
 
 bool UInventoryComponent::IsFull() const {
@@ -268,7 +251,7 @@ int32 UInventoryComponent::FindFirstStackableSlotIndex(const UItemDefinitionBase
 	{
 		if (CanStackTogether(Slots[Index], TempSlot))
 		{
-			if (Slots[Index].Quantity != Slots[Index].Item->MaxStackSize) {
+			if (Slots[Index].Quantity < GetEffectiveMaxStackSize(Slots[Index].Item)) {
 				return Index;
 			}
 		}
@@ -288,18 +271,19 @@ int32 UInventoryComponent::FreeStorageForItem(const UItemDefinitionBase* Item, c
 	TempSlot.Item = Item;
 	TempSlot.Instance = Instance;
 
+	const int32 Cap = GetEffectiveMaxStackSize(Item);
 	int32 freeSpace = 0;
 
 	for (const auto& Slot : Slots)
 	{
 		if (Slot.IsEmpty())
 		{
-			freeSpace += Item->MaxStackSize;
+			freeSpace += Cap;
 			continue;
 		}
 		if (CanStackTogether(Slot, TempSlot))
 		{
-			freeSpace += Slot.Item->MaxStackSize - Slot.Quantity;
+			freeSpace += Cap - Slot.Quantity;
 		}
 	}
 
@@ -307,6 +291,11 @@ int32 UInventoryComponent::FreeStorageForItem(const UItemDefinitionBase* Item, c
 }
 
 
+/**
+ * Every exit here reports INDEX_NONE, not ToIdx: a move changes the source slot as well as the
+ * destination, and the delegate's contract is that an index means "this one slot and nothing
+ * else". Naming only ToIdx left the source slot stale for any listener that trusted the index.
+ */
 bool UInventoryComponent::MoveWithin(int32 FromIdx, int32 ToIdx, int32 Quantity)
 {
 	if (!Slots.IsValidIndex(FromIdx) || !Slots.IsValidIndex(ToIdx)) return false;
@@ -315,13 +304,13 @@ bool UInventoryComponent::MoveWithin(int32 FromIdx, int32 ToIdx, int32 Quantity)
 	// Merge into existing stack if possible
 	if (!Slots[ToIdx].IsEmpty() && CanStackTogether(Slots[FromIdx], Slots[ToIdx]))
 	{
-		const int32 Space = Slots[ToIdx].Item->MaxStackSize - Slots[ToIdx].Quantity;
+		const int32 Space = GetEffectiveMaxStackSize(Slots[ToIdx].Item) - Slots[ToIdx].Quantity;
 		const int32 Take = FMath::Min(Quantity, FMath::Min(Slots[FromIdx].Quantity, Space));
 		if (Take <= 0) return false;
 		Slots[ToIdx].Quantity += Take;
 		Slots[FromIdx].Quantity -= Take;
 		if (Slots[FromIdx].Quantity <= 0) Slots[FromIdx] = FInventorySlot{};
-		OnInventoryChanged.Broadcast();
+		OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemMoved, INDEX_NONE);
 		return true;
 	}
 
@@ -329,7 +318,7 @@ bool UInventoryComponent::MoveWithin(int32 FromIdx, int32 ToIdx, int32 Quantity)
 	if (Quantity >= Slots[FromIdx].Quantity)
 	{
 		Slots.Swap(FromIdx, ToIdx);
-		OnInventoryChanged.Broadcast();
+		OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemMoved, INDEX_NONE);
 		return true;
 	}
 
@@ -344,7 +333,7 @@ bool UInventoryComponent::MoveWithin(int32 FromIdx, int32 ToIdx, int32 Quantity)
 
 	Slots[FromIdx].Quantity -= Take;
 	Slots[ToIdx] = Split;
-	OnInventoryChanged.Broadcast();
+	OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemMoved, INDEX_NONE);
 	return true;
 }
 
@@ -356,6 +345,10 @@ bool UInventoryComponent::TransferTo(UInventoryComponent* To, int32 FromIdx, int
 
 
 	const FInventorySlot& Src = Slots[FromIdx];
+
+	// Empty-slot guard before the whitelist test, which dereferences Src.Item. Latent until
+	// a container actually set a whitelist - the drying rack is the first one that does.
+	if (Src.IsEmpty()) return false;
 
 	if (!To->CategoryWhitelist.IsEmpty() && !To->CategoryWhitelist.Contains(Src.Item->Category)) return false;
 
@@ -378,7 +371,8 @@ bool UInventoryComponent::TransferTo(UInventoryComponent* To, int32 FromIdx, int
 		return false;
 	}
 
-	To->OnInventoryChanged.Broadcast();
+	// RemoveAt above already reported the source side.
+	To->OnInventoryChangedType.Broadcast(EInventoryChangeType::ItemAdded, ToIdx);
 	return true;
 }
 
@@ -387,21 +381,24 @@ bool UInventoryComponent::AddSlotAtIndex(const FInventorySlot& SlotItem, int32 T
 
 	if (Slots[ToIdx].IsEmpty())
 	{
+		// Clamp: this is the path a cross-inventory drag lands on, so an unclamped assign
+		// is how a 5-stack would bypass a one-per-slot container (and how any stack could
+		// exceed the item's own MaxStackSize).
+		QuantityAdded = FMath::Min(SlotItem.Quantity, GetEffectiveMaxStackSize(SlotItem.Item));
+		if (QuantityAdded <= 0) return false;
+
 		Slots[ToIdx] = SlotItem;
-		QuantityAdded = Slots[ToIdx].Quantity;
+		Slots[ToIdx].Quantity = QuantityAdded;
 		return true;
 	}
 	else
 	{
 		if (!CanStackTogether(Slots[ToIdx], SlotItem)) return false;
-		if (SlotItem.Quantity + Slots[ToIdx].Quantity > Slots[ToIdx].Item->MaxStackSize)
-		{
-			QuantityAdded = FMath::Clamp(SlotItem.Quantity, 0, Slots[ToIdx].Item->MaxStackSize- Slots[ToIdx].Quantity);
-		}
-		else
-		{
-			QuantityAdded = SlotItem.Quantity;
-		}
+
+		const int32 Space = GetEffectiveMaxStackSize(Slots[ToIdx].Item) - Slots[ToIdx].Quantity;
+		QuantityAdded = FMath::Clamp(SlotItem.Quantity, 0, Space);
+		if (QuantityAdded <= 0) return false;
+
 		Slots[ToIdx].Quantity += QuantityAdded;
 		return true;
 	}
@@ -502,4 +499,14 @@ bool UInventoryComponent::TryDropItemToWorld(int32 FromIdx, int32 Quantity)
 	}
 
 	return true;
+}
+
+int32 UInventoryComponent::GetEffectiveMaxStackSize(const UItemDefinitionBase* Item) const
+{
+	if (!Item) return 0;
+
+	// The item proposes, the container caps. bStackable is just "MaxStackSize == 1" said
+	// another way, which is what lets the two cases share one path in AddItem.
+	const int32 ItemCap = Item->bStackable ? FMath::Max(1, Item->MaxStackSize) : 1;
+	return StackSizeLimit > 0 ? FMath::Min(ItemCap, StackSizeLimit) : ItemCap;
 }

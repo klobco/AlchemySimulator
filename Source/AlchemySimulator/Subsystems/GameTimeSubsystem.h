@@ -6,6 +6,16 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "GameTimeSubsystem.generated.h"
 
+/** The shape of the calendar. Shared so FAlchemyGameTime::ToTotalMinutes and
+ *  UGameTimeSubsystem::RecalculateTime cannot disagree about how long a month is. */
+namespace AlchemyCalendar
+{
+	constexpr int32 MinutesInHour = 60;
+	constexpr int32 HoursInDay    = 24;
+	constexpr int32 DaysInMonth   = 30;
+	constexpr int32 MonthsInYear  = 12;
+}
+
 USTRUCT(BlueprintType)
 struct FAlchemyGameTime
 {
@@ -29,6 +39,25 @@ struct FAlchemyGameTime
 	FString ToString() const
 	{
 		return FString::Printf(TEXT("%04d-%02d-%02d %02d:%02d"), Year, Month, Day, Hour, Minute);
+	}
+
+	/**
+	 * This moment as one absolute minute count since the start of the calendar.
+	 *
+	 * Anything that measures elapsed game time must derive it from two of these stamps.
+	 * OnGameMinuteChanged fires once per AddMinutes() CALL, not once per minute, so counting
+	 * broadcasts would turn a night's sleep -- a single AddMinutes(480) -- into one minute.
+	 */
+	int64 ToTotalMinutes() const
+	{
+		const int64 TotalDays =
+			  (static_cast<int64>(Year) - 1) * AlchemyCalendar::MonthsInYear * AlchemyCalendar::DaysInMonth
+			+ (static_cast<int64>(Month) - 1) * AlchemyCalendar::DaysInMonth
+			+ (static_cast<int64>(Day) - 1);
+
+		return TotalDays * AlchemyCalendar::HoursInDay * AlchemyCalendar::MinutesInHour
+			+ static_cast<int64>(Hour) * AlchemyCalendar::MinutesInHour
+			+ Minute;
 	}
 
 };

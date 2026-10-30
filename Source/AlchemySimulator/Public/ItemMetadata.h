@@ -71,6 +71,17 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bIsPotion = false;
 
+    /**
+     * Accumulated drying exposure in game minutes. Normalise it against the item's
+     * MinutesToFullyDry and feed that to UDataAssetDryingProfile to get a stage.
+     *
+     * This is the ONLY stored drying fact. The stage is always derived from it and is never
+     * stored anywhere -- not in RuntimeTags, not on the rack. Two owners of one fact is the
+     * failure mode this project already records for input mode and the interaction indicator.
+     */
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float DryingMinutes = 0.f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FGameplayTagContainer RuntimeTags;
 

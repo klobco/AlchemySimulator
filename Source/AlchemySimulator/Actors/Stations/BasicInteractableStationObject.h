@@ -16,24 +16,6 @@ public:
 	// Sets default values for this actor's properties
 	ABasicInteractableStationObject();
 
-	UPROPERTY(EditAnywhere, Category = "tools")
-	class UInventoryComponent* herbsInventory;
-
-	UPROPERTY(EditAnywhere, Category = "tools")
-	UInventoryComponent* toolsInventory;
-
-	UPROPERTY(EditAnywhere, Category = "tools")
-	TMap<int32, class ABaseTool* > Tools;
-
-	UPROPERTY(VisibleAnywhere, Category = "tools")
-	int32 ActiveToolIndex = -1;
-
-	UPROPERTY(EditAnywhere, Category = "tools")
-	int32 ToolsLimit;
-
-	UPROPERTY(EditAnywhere, Category = "tools")
-	int32 HerbsLimit;
-
 
 	UFUNCTION()
 	void HandleBeginCursorOver(class UPrimitiveComponent* Component);
@@ -53,16 +35,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "widgets")
 	TSubclassOf<class UTableInventoryWidget> TableInventoryWidgetClass;
 
+	
 
-	virtual void AddTool(ABaseTool* tool);
-
-	virtual void RemoveTool(ABaseTool* tool);
-
-	virtual void SetActiveTool(ABaseTool* tool);
+	/**
+	 * The inventory the station-inventory UI shows for this station. Null means the station
+	 * has none. Overriding this is all a new station type owes the UI - UTableInventoryWidget
+	 * asks the station rather than casting to each subclass in turn.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	virtual class UInventoryComponent* GetStationInventory() const;
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	/**
+	 * Push the station-inventory widget, or pop it if it is already on top. Shared by the
+	 * HerbMesh click handler and by subclasses whose Interact opens the same screen.
+	 */
+	void OpenStationInventory();
 
 public:
 	// Called every frame

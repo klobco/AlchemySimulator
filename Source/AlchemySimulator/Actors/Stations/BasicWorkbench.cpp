@@ -19,8 +19,8 @@ ABasicWorkbench::ABasicWorkbench() {
 	KnifeStand = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Knife stand"));
 	KnifeStand->SetupAttachment(Body);
 
-	toolsInventory->MaxSlots = ToolsLimit;
-	herbsInventory->MaxSlots = HerbsLimit;
+	toolsInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Tools Inventory"));
+	herbsInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Herbs Inventory"));
 
 
 	MovingZone = CreateDefaultSubobject<UBoxComponent>(TEXT("MovingZone"));
@@ -36,13 +36,18 @@ ABasicWorkbench::ABasicWorkbench() {
 
 void ABasicWorkbench::BeginPlay()
 {
-	Super::BeginPlay();
+	if (toolsInventory) toolsInventory->MaxSlots = ToolsLimit;
+	if (herbsInventory) herbsInventory->MaxSlots = HerbsLimit;
 
+	Super::BeginPlay();
+}
+
+UInventoryComponent* ABasicWorkbench::GetStationInventory() const
+{
+	return herbsInventory;
 }
 
 void ABasicWorkbench::AddTool(ABaseTool* tool) {
-	Super::AddTool(tool);
-
 
 	if (!tool) return;
 
@@ -124,6 +129,14 @@ void ABasicWorkbench::RemoveTool(ABaseTool* tool) {
 bool ABasicWorkbench::CanAcceptDraggedItem(const UItemDefinitionBase* ItemDef, const FItemInstanceData& Instance) const
 {
 	if (!ItemDef) return false;
+
+	// Before the whitelist, not inside it: a scorched item carries Processing.Dried as well --
+	// it picked that up crossing the Dry band on its way -- so the Dried clause below would
+	// otherwise let a ruined ingredient onto the table.
+	if (Instance.ProcessingTags.HasTagExact(TAG_Processing_Scorched))
+	{
+		return false;
+	}
 
 	if (Instance.ProcessingTags.IsEmpty() || Instance.ProcessingTags.HasTagExact(TAG_Processing_Cut) || Instance.ProcessingTags.HasTagExact(TAG_Processing_Dried))
 	{
@@ -310,4 +323,22 @@ FVector ABasicWorkbench::ClampActorToWorkbench(const AActor* Actor, const FVecto
 	// Z intentionally not clamped — the drag plane locks height, physics settles it.
 
 	return AreaTransform.TransformPosition(LocalCentre) - PivotToCentre;
+}
+
+
+void ABasicWorkbench::SetActiveTool(ABaseTool* tool) {
+	if (!tool)
+	{
+		ActiveToolIndex = INDEX_NONE;
+		return;
+	}
+
+	for (auto& Pair : Tools)
+	{
+		if (Pair.Value == tool)
+		{
+			ActiveToolIndex = Pair.Key;
+			return;
+		}
+	}
 }

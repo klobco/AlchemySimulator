@@ -31,4 +31,24 @@ public:
 	    float MiniGameQuality
 	);
 
+	/**
+	 * Undo one method on an instance: drops its ProcessingTag and its AppliedMethods entry, and
+	 * divides its GeneralPotencyMultiplier back out of ProcessingQuality.
+	 *
+	 * This exists so a state can be *replaced* rather than stacked -- a drying rack swaps Dried
+	 * for Scorched instead of leaving both on the item. Tag, method list and multiplier are
+	 * undone together here for the same reason BuildProcessedInstance applies them together:
+	 * removing the tag alone would leave the multiplier silently baked in forever.
+	 *
+	 * Two honest limits. It cannot recover the MiniGameQuality that was folded in alongside the
+	 * multiplier, so it is exact only for a method applied at quality 1.0 (which is every
+	 * unattended one). And a GeneralPotencyMultiplier of 0 destroyed the value, so ProcessingQuality
+	 * is left untouched in that case. Does nothing if the method is not on the instance.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Alchemy|Processing")
+	static FItemInstanceData RemoveProcessingMethod(
+	    const FItemInstanceData& OriginalInstance,
+	    UDataAssetProcessingMethod* ProcessingMethod
+	);
+
 };

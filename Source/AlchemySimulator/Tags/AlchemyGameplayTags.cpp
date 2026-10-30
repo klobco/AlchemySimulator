@@ -55,6 +55,16 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Processing_Crushed,   "Processing.Crushed");
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(TAG_Processing_Cut, "Processing.Cut", "Cut");
 UE_DEFINE_GAMEPLAY_TAG(TAG_Processing_Dried,     "Processing.Dried");
 UE_DEFINE_GAMEPLAY_TAG(TAG_Processing_Raw,       "Processing.Raw");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Processing_Scorched,   "Processing.Scorched");
+
+// --- Drying: the derived stage, present participle (see "Drying.* vs Processing.*") -------------
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(TAG_Drying, "Drying", "Root of the derived drying-stage family. Never written to FItemInstanceData::ProcessingTags");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Drying_Wet,           "Drying.Wet");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Drying_Moist,         "Drying.Moist");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Drying_SemiDry,       "Drying.SemiDry");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Drying_Dry,           "Drying.Dry");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Drying_Scorched,      "Drying.Scorched");
+
 
 // --- Substances --------------------------------------------------------------------------------
 UE_DEFINE_GAMEPLAY_TAG(TAG_Substance_Frostaline, "Substance.Frostaline");

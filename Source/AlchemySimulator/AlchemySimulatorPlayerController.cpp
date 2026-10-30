@@ -677,10 +677,15 @@ void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)
 
 	UE_LOG(LogTemp, Error, TEXT("Setting active tool"));
 
+	// Tools belong to the workbench, so a non-workbench station has no active tool and
+	// must not install the workbench cursor either.
+	ABasicWorkbench* Bench = Cast<ABasicWorkbench>(Station);
+	if (!Bench) return;
+
 	// Find, not Find-and-deref: ActiveToolIndex != -1 does not guarantee the map
 	// still holds that index (a removed tool leaves the index stale), and
 	// dereferencing the null result is a crash.
-	if (ABaseTool** ActiveTool = Station->Tools.Find(Station->ActiveToolIndex))
+	if (ABaseTool** ActiveTool = Bench->Tools.Find(Bench->ActiveToolIndex))
 	{
 		if (*ActiveTool == tool)
 		{
@@ -690,7 +695,7 @@ void AAlchemySimulatorPlayerController::SetActiveTool(ABaseTool* tool)
 		}
 	}
 
-	Station->SetActiveTool(tool);
+	Bench->SetActiveTool(tool);
 
 	if (tool && tool->Item && tool->Item->WorkbenchCursor && CursorWidgetClass)
 	{
@@ -720,7 +725,10 @@ void AAlchemySimulatorPlayerController::ResetActiveTool()
 
 	if (ABasicInteractableStationObject* Station = GetCurrentStation())
 	{
-		Station->SetActiveTool(nullptr);
+		if (ABasicWorkbench* Bench = Cast<ABasicWorkbench>(Station))
+		{
+			Bench->SetActiveTool(nullptr);
+		}
 	}
 }
 

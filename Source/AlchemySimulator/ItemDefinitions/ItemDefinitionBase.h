@@ -75,6 +75,33 @@ public:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Stacking", meta = (ClampMin = "1", EditCondition = "bStackable"))
     int32 MaxStackSize = 99;
 
+    // --- Drying ---
+    /**
+     * The stage curve this item follows on a drying rack. Null = this item cannot be dried,
+     * which is what every drying consumer tests first.
+     */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Drying")
+    TObjectPtr<class UDataAssetDryingProfile> DryingProfile = nullptr;
+
+    /**
+     * How long this item takes to reach the profile's "fully dry" point, in game minutes. The
+     * profile's thresholds are normalised against this, so a leaf and a root share one curve and
+     * differ only here. <= 0 = cannot be dried.
+     */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Drying", meta = (ClampMin = "0.0"))
+    float MinutesToFullyDry = 0.f;
+
+    /**
+     * May this item be put into the processing state Tag names?
+     *
+     * The one question every route into a processing state asks: a tool action asks it through
+     * UDataAssetPlantPart::AcceptsToolAction, and the drying rack asks it directly. The base
+     * answer is yes for everything -- only assets that actually restrict processing override it,
+     * and overriding it is what keeps the tool route and the rack route from drifting apart.
+     */
+    UFUNCTION(BlueprintCallable, Category = "Item|Processing")
+    virtual bool AcceptsProcessingTag(const FGameplayTag& Tag) const { return true; }
+
     // --- Economy ---
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Item|Economy", meta = (ClampMin = "0"))
     int32 BaseValue = 0;

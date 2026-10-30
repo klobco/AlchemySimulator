@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Widgets/Menu/BaseGameWidget.h"
 #include "Widgets/Tables/ActionTabWidget.h"
+#include "Components/Inventory/InventoryComponent.h"
 #include "TableWidget.generated.h"
 
 /**
@@ -50,6 +51,10 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void Rebuild();
+
+	/** Rebuild on any inventory change. Rebuild() itself takes no args, so it cannot bind directly. */
+	UFUNCTION()
+	void HandleInventoryChanged(EInventoryChangeType ChangeType, int32 SlotIndex);
 
 protected:
 	virtual void NativeConstruct() override;

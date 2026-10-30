@@ -64,6 +64,18 @@ ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Processing_Crushed);
 ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Processing_Cut);
 ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Processing_Dried);
 ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Processing_Raw);
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Processing_Scorched);
+
+// --- Drying: the DERIVED stage of an item on a rack, never written to ProcessingTags -----------
+// A third family, deliberately not under Processing.*: AllowedProcessingTags matches with HasTag,
+// so a Processing.Drying.Moist would start matching every part that allows Processing.Drying, and
+// UDataAssetPlantPart::IsDataValid would accept a stage tag there as a legitimate processing tag.
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Drying);
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Drying_Wet);
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Drying_Moist);
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Drying_SemiDry);
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Drying_Dry);
+ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Drying_Scorched);
 
 // --- Substances --------------------------------------------------------------------------------
 ALCHEMYSIMULATOR_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Substance_Frostaline);

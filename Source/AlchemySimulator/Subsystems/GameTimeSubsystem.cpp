@@ -50,10 +50,7 @@ void UGameTimeSubsystem::Tick(float DeltaTime)
 
 void UGameTimeSubsystem::RecalculateTime()
 {
-    const int32 MinutesInHour = 60;
-    const int32 HoursInDay = 24;
-    const int32 DaysInMonth = 30;
-    const int32 MonthsInYear = 12;
+    using namespace AlchemyCalendar;
 
     if (CurrentGameTime.Minute >= MinutesInHour)
     {

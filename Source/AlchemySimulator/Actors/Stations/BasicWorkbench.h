@@ -28,6 +28,24 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	TObjectPtr<class UBoxComponent> MovingZone;
 
+	UPROPERTY(EditAnywhere, Category = "tools")
+	UInventoryComponent* toolsInventory;
+
+	UPROPERTY(EditAnywhere, Category = "tools")
+	TMap<int32, class ABaseTool* > Tools;
+
+	UPROPERTY(VisibleAnywhere, Category = "tools")
+	int32 ActiveToolIndex = -1;
+
+	UPROPERTY(EditAnywhere, Category = "tools")
+	int32 ToolsLimit = 4;
+
+	UPROPERTY(EditAnywhere, Category = "tools")
+	class UInventoryComponent* herbsInventory;
+
+	UPROPERTY(EditAnywhere, Category = "tools")
+	int32 HerbsLimit = 12;
+
 	/**
 	 * Clamp DesiredLocation so the whole of Actor's bounds stays inside MovingZone.
 	 * Accounts for meshes whose pivot isn't at their bounds centre. Z is left alone —
@@ -48,12 +66,16 @@ public:
 	TArray<class AActor*> HerbsOnTable;
 
 	UFUNCTION(BlueprintCallable)
-	virtual void AddTool(ABaseTool* tool) override;
-	
+	void AddTool(ABaseTool* tool);
 
 	UFUNCTION(BlueprintCallable)
-	virtual void RemoveTool(ABaseTool* tool) override;
-	
+	void RemoveTool(ABaseTool* tool);
+
+	UFUNCTION(BlueprintCallable)
+	void SetActiveTool(ABaseTool* tool);
+
+	virtual class UInventoryComponent* GetStationInventory() const override;
+
 protected:
 	virtual void BeginPlay() override;
 };

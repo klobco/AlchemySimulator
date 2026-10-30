@@ -30,9 +30,6 @@ ABasicInteractableStationObject::ABasicInteractableStationObject()
 	InteractionViewPoint = CreateDefaultSubobject<USceneComponent>(TEXT("camera hold"));
 	InteractionViewPoint->SetupAttachment(RootComponent);
 
-	toolsInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Tools Inventory"));
-	herbsInventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Herbs Inventory"));
-
 }
 
 // Called when the game starts or when spawned
@@ -99,14 +96,33 @@ void ABasicInteractableStationObject::HandleClicked(UPrimitiveComponent* Compone
 
 void ABasicInteractableStationObject::OpenInventory(UPrimitiveComponent* Component, FKey ButtonPressed)
 {
+	OpenStationInventory();
+}
+
+void ABasicInteractableStationObject::OpenStationInventory()
+{
 	AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetWorld()->GetFirstPlayerController());
 	if (!PC || !TableInventoryWidgetClass) return;
+
+	if (UBaseGameWidget* Top = PC->WidgetManager->GetTopWidget())
+	{
+		if (Top->IsA<UTableInventoryWidget>())
+		{
+			PC->PopWidget();
+			return;
+		}
+	}
 
 	UTableInventoryWidget* Widget = CreateWidget<UTableInventoryWidget>(PC, TableInventoryWidgetClass);
 	if (!Widget) return;
 
 	Widget->Setup(this);
 	PC->PushWidget(Widget);
+}
+
+UInventoryComponent* ABasicInteractableStationObject::GetStationInventory() const
+{
+	return nullptr;
 }
 
 // Called every frame
@@ -150,30 +166,4 @@ void ABasicInteractableStationObject::OnFocStart_Implementation(APawn* By)
 void ABasicInteractableStationObject::OnFocEnd_Implementation(APawn* By)
 {
 
-}
-
-void ABasicInteractableStationObject::AddTool(ABaseTool* tool) {
-
-
-}
-
-void ABasicInteractableStationObject::RemoveTool(ABaseTool* tool) {
-	//toolsInventory.Remove(tool);
-}
-
-void ABasicInteractableStationObject::SetActiveTool(ABaseTool* tool) {
-	if (!tool)
-	{
-		ActiveToolIndex = INDEX_NONE;
-		return;
-	}
-
-	for (auto& Pair : Tools)
-	{
-		if (Pair.Value == tool)
-		{
-			ActiveToolIndex = Pair.Key;
-			return;
-		}
-	}
 }

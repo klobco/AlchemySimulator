@@ -65,6 +65,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Tool")
 	bool AcceptsToolAction(const FToolAction& Action) const;
 
+	/**
+	 * bCanBeProcessed + AllowedProcessingTags, which is the test AcceptsToolAction used to perform
+	 * inline. Lifting it to the base class's virtual is what lets the drying rack ask the same
+	 * question without casting to this type, and guarantees a part that may not be dried cannot be
+	 * dried by a tool either.
+	 */
+	virtual bool AcceptsProcessingTag(const FGameplayTag& Tag) const override;
+
 #if WITH_EDITOR
 	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
 #endif

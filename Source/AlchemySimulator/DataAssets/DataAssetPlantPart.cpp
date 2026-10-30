@@ -23,20 +23,23 @@ bool UDataAssetPlantPart::AcceptsToolAction(const FToolAction& Action) const
 	// A pure-harvest action carries no processing method (cutting a leaf off a plant yields a raw
 	// leaf), so it stops here. Only actions that would actually change the item's processing state
 	// are asked the second question.
-	if (Action.ProcessingMethod)
+	if (Action.ProcessingMethod && !AcceptsProcessingTag(Action.ProcessingMethod->ProcessingTag))
 	{
-		if (!bCanBeProcessed)
-		{
-			return false;
-		}
-
-		if (!AllowedProcessingTags.HasTag(Action.ProcessingMethod->ProcessingTag))
-		{
-			return false;
-		}
+		return false;
 	}
 
 	return true;
+}
+
+bool UDataAssetPlantPart::AcceptsProcessingTag(const FGameplayTag& Tag) const
+{
+	if (!bCanBeProcessed)
+	{
+		return false;
+	}
+
+	// HasTag, not HasTagExact: a container holding a parent Processing tag should match its children.
+	return AllowedProcessingTags.HasTag(Tag);
 }
 
 #if WITH_EDITOR
@@ -68,6 +71,16 @@ EDataValidationResult UDataAssetPlantPart::IsDataValid(FDataValidationContext& C
 		Context.AddWarning(LOCTEXT("TagsButNotProcessable",
 			"AllowedProcessingTags lists tags but bCanBeProcessed is false, so they are all ignored. "
 			"Either enable bCanBeProcessed or clear the tags."));
+	}
+
+	// The rack goes through AcceptsProcessingTag like a tool does, so a part that can dry by the
+	// clock but does not allow Processing.Dried hangs on the hook forever with nothing logged.
+	if (DryingProfile && MinutesToFullyDry > 0.f && !AcceptsProcessingTag(TAG_Processing_Dried))
+	{
+		Context.AddWarning(LOCTEXT("DryableButDryingNotAllowed",
+			"A DryingProfile and MinutesToFullyDry are set, but Processing.Dried is not accepted "
+			"(either bCanBeProcessed is off or AllowedProcessingTags does not list it). This part will "
+			"sit on a drying rack forever without changing state."));
 	}
 
 	// Wrong-family tags: MatchesTag is hierarchy-aware, so this keeps working as new children are

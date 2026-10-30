@@ -4,9 +4,9 @@
 #include "ItemMetadata.h"
 #include "ItemDefinitions/ItemDefinitionBase.h"
 #include "Widgets/Tables/ActionTabItemWidget.h"
-#include "Actors/Stations/BasicInteractableStationObject.h"
-#include "Widgets/Tables/TableInventoryWidget.h"
 #include "Actors/Stations/BasicWorkbench.h"
+#include "Widgets/Tables/TableInventoryWidget.h"
+#include "Actors/Stations/BasicInteractableStationObject.h"
 #include "Actors/Tools/BaseTool.h"
 #include "Components/VerticalBox.h"
 #include "Widgets/Tables/TableWidget.h"
@@ -31,7 +31,7 @@ void UTableWidget::NativeConstruct()
                 if (UInventoryComponent* Inv = P->FindComponentByClass<UInventoryComponent>())
                 {
                     Inventory = Inv;
-                    Inventory->OnInventoryChanged.AddDynamic(this, &UTableWidget::Rebuild);
+                    Inventory->OnInventoryChangedType.AddUniqueDynamic(this, &UTableWidget::HandleInventoryChanged);
                 }
             }
         }
@@ -42,7 +42,17 @@ void UTableWidget::NativeConstruct()
 
 void UTableWidget::NativeDestruct()
 {
+    if (IsValid(Inventory))
+    {
+        Inventory->OnInventoryChangedType.RemoveDynamic(this, &UTableWidget::HandleInventoryChanged);
+    }
+
     Super::NativeDestruct();
+}
+
+void UTableWidget::HandleInventoryChanged(EInventoryChangeType ChangeType, int32 SlotIndex)
+{
+    Rebuild();
 }
 
 void UTableWidget::OnClosed_Implementation()
@@ -104,18 +114,22 @@ void UTableWidget::Rebuild() {
     if (SelectedAction == EAction::RemoveFromTable && Table)
     {
 
-        for (auto& tool : Table->Tools) {
-
-            UActionTabItemWidget* Entry = CreateWidget<UActionTabItemWidget>(GetOwningPlayer(), EntryItemWidgetClass);
-            if (!Entry) continue;
-
-
-            Entry->Setup(Table->toolsInventory->Slots[tool.Key]);
-
-            Entry->ItemClicked.AddDynamic(this, &UTableWidget::ItemAction);
-
-            InventoryItems->AddChild(Entry);
+        if (ABasicWorkbench*bench = Cast<ABasicWorkbench>(Table)){
+            
+            for (auto& tool : bench->Tools) {
+    
+                UActionTabItemWidget* Entry = CreateWidget<UActionTabItemWidget>(GetOwningPlayer(), EntryItemWidgetClass);
+                if (!Entry) continue;
+    
+    
+                Entry->Setup(bench->toolsInventory->Slots[tool.Key]);
+    
+                Entry->ItemClicked.AddDynamic(this, &UTableWidget::ItemAction);
+    
+                InventoryItems->AddChild(Entry);
+            }
         }
+
     }
 
 }
@@ -133,14 +147,13 @@ void UTableWidget::SetTable(ABasicInteractableStationObject* InTable) {
 
 void UTableWidget::ItemAction(FInventorySlot InSlot) {
 
-    UE_LOG(LogTemp, Error, TEXT("Item Action Add START"));
+    // Putting tools on a table is workbench-only, so the cast gates the whole action.
+    ABasicWorkbench* Bench = Cast<ABasicWorkbench>(Table);
+    if (!Bench || !Inventory) return;
 
     if (SelectedAction == EAction::AddToTable)
     {
-        if (!Table) return;
-
-        int32 SlotIndex = Table->toolsInventory->FindFirstEmptySlotIndex();
-        if (SlotIndex == INDEX_NONE)
+        if (Bench->toolsInventory->FindFirstEmptySlotIndex() == INDEX_NONE)
         {
             UE_LOG(LogTemp, Error, TEXT("BasicWorkbench: toolsInventory full"));
             return;
@@ -148,49 +161,41 @@ void UTableWidget::ItemAction(FInventorySlot InSlot) {
 
         if (!InSlot.Item || !InSlot.Item->WorldItem) return;
 
-        if (!Inventory->RemoveSlotItem(InSlot)) return; 
-
-
-        UE_LOG(LogTemp, Error, TEXT("Item Action Add"));
-
-
-
         UWorld* World = GetWorld();
         if (!World) return;
+
+        // Remove only once every bail-out above is past, so a refusal cannot consume the item.
+        if (!Inventory->RemoveSlotItem(InSlot)) return;
 
         FActorSpawnParameters Params;
         Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-        FRotator SpawnRotation(0.f, 0.f, 0.f);
-
         ABaseTool* SpawnedTool = World->SpawnActor<ABaseTool>(
             InSlot.Item->WorldItem,
-            Table->GetActorLocation(),
-            SpawnRotation,
+            Bench->GetActorLocation(),
+            FRotator::ZeroRotator,
             Params
         );
 
-        if (SpawnedTool)
+        // Never silently eat the item a refused spawn would have carried.
+        if (!SpawnedTool)
         {
-            SpawnedTool->ToolMesh->SetSimulatePhysics(false);
-            SpawnedTool->ToolMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-            SpawnedTool->Tags.Empty();
-
-            
-            Table->AddTool(SpawnedTool);
+            Inventory->AddItem(InSlot.Item, InSlot.Quantity, InSlot.Instance);
+            return;
         }
+
+        SpawnedTool->ToolMesh->SetSimulatePhysics(false);
+        SpawnedTool->ToolMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+        SpawnedTool->Tags.Empty();
+        Bench->AddTool(SpawnedTool);
     }
     else if (SelectedAction == EAction::RemoveFromTable)
     {
-        UE_LOG(LogTemp, Error, TEXT("Item Action Remove"));
-
-        if (!Table) return;
-
-        // Find the ABaseTool* in the table matching this inventory slot
+        // Find the ABaseTool* on the table matching this inventory slot.
         ABaseTool* ToolToRemove = nullptr;
-        for (auto& Pair : Table->Tools)
+        for (auto& Pair : Bench->Tools)
         {
-            const FInventorySlot& TableSlot = Table->toolsInventory->Slots[Pair.Key];
+            const FInventorySlot& TableSlot = Bench->toolsInventory->Slots[Pair.Key];
             if (TableSlot.Item == InSlot.Item && TableSlot.Instance.Quality == InSlot.Instance.Quality)
             {
                 ToolToRemove = Pair.Value;
@@ -200,8 +205,7 @@ void UTableWidget::ItemAction(FInventorySlot InSlot) {
 
         if (!ToolToRemove) return;
 
-        Table->RemoveTool(ToolToRemove);
-
+        Bench->RemoveTool(ToolToRemove);
         Inventory->AddItem(InSlot.Item, 1, InSlot.Instance);
     }
 

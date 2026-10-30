@@ -21,7 +21,19 @@ void UTableInventoryWidget::Setup(ABasicInteractableStationObject* station) {
 
     if (TableInventoryWidget)
     {
-        TableInventoryWidget->SetInventory(station->herbsInventory);
+        // Each station type answers for itself, so a new one needs no edit here.
+        UInventoryComponent* StationInv = station->GetStationInventory();
+
+        // Worth saying out loud: UInventoryWidget falls back to the player's own inventory
+        // when handed null, so a station that forgot to override GetStationInventory would
+        // otherwise show the player's bag in the station panel and look almost right.
+        if (!StationInv)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[Station] %s has no station inventory - does it override GetStationInventory()?"),
+                *station->GetName());
+        }
+
+        TableInventoryWidget->SetInventory(StationInv);
     }
 
     if (PlayerInventoryWidget)

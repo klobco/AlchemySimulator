@@ -58,8 +58,17 @@ TYPES = {
         "04 Herbs",
         # AcceptedToolActions is design content (which tool harvests this part); WorldMesh and
         # WorldMaterialOverride are presentation and deliberately stay out of the vault.
+        # MinutesToFullyDry is the per-part drying knob -- the shared curve it is measured
+        # against lives on the DryingProfile asset, so both are needed to read either.
         ["DisplayName", "PlantPartTag", "BaseQuality", "bCanBeProcessed",
-         "AllowedProcessingTags", "AcceptedToolActions", "Substances"],
+         "AllowedProcessingTags", "AcceptedToolActions", "DryingProfile",
+         "MinutesToFullyDry", "Substances"],
+    ),
+    "DataAssetDryingProfile": (
+        "06 Processing",
+        # Stages is an array of structs, so it renders as a table rather than frontmatter.
+        # The thresholds are normalised: an item's own MinutesToFullyDry scales them.
+        ["Stages"],
     ),
     "DialogueDataAsset": (
         "08 Dialogue",
@@ -280,7 +289,7 @@ def extract(obj, cls_name, keys):
         key = key.rsplit(".", 1)[-1]
 
         if key in ("BaseEffects", "Substances", "TreatmentRequirements",
-                   "EntryPoints", "Nodes"):
+                   "EntryPoints", "Nodes", "Stages"):
             continue  # arrays of structs -> rendered as tables, not frontmatter
 
         # Dispatch on the VALUE's type first, falling back to the key name only when the value is
@@ -295,6 +304,10 @@ def extract(obj, cls_name, keys):
             data[key] = fmt_tag_container(raw)
         elif key == "ColorHint":
             data[key] = fmt_color(raw)
+        elif key == "DryingProfile":
+            # An asset reference. Never str() it -- a UObject's repr carries a memory address
+            # that changes every run, which would make every dump produce a spurious diff.
+            data[key] = "[[{}]]".format(pretty(asset_name(raw))) if raw is not None else ""
         elif key in ("DisplayName", "NameFormat"):
             data[key] = str(raw) if raw is not None else ""
         elif isinstance(raw, bool):
@@ -321,6 +334,19 @@ def extract(obj, cls_name, keys):
                 pretty(asset_name(substance)), fmt_num(get_prop(entry, "Amount"))
             ))
         detail += table("Substances", ["Substance", "Amount"], rows)
+
+    if "Stages" in keys:
+        rows = []
+        for entry in (get_prop(obj, "Stages") or []):
+            method = get_prop(entry, "CommitMethod")
+            name_format = get_prop(entry, "Presentation.NameFormat")
+            rows.append("| {} | {} | {} | {} |".format(
+                cell(fmt_tag(get_prop(entry, "StageTag"))) or "_unset_",
+                fmt_num(get_prop(entry, "EnterAtNormalized")),
+                "[[{}]]".format(pretty(asset_name(method))) if method is not None else "-",
+                cell(str(name_format or "")) or "-",
+            ))
+        detail += table("Stages", ["Stage", "EnterAtNormalized", "Commits", "NameFormat"], rows)
 
     if "TreatmentRequirements" in keys:
         rows = []
