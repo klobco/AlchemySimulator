@@ -20,6 +20,13 @@ void UInventorySlotWidget::Setup(FInventorySlot slot)
 {
 	InvSlot = slot;
 	Rebuild();
+
+    // RefreshSlot reuses this widget, so no MouseEnter follows; refresh the panel ourselves or it
+    // keeps showing what the slot held before (a drunk potion, a dryness from minutes ago).
+    if (bPointerInside)
+    {
+        PushDetails();
+    }
 }
 
 void UInventorySlotWidget::SetupEmpty()
@@ -33,7 +40,11 @@ void UInventorySlotWidget::SetupEmpty()
         SlotImage->SetOpacity(0.f);
     }
 
-    
+    if (bPointerInside)
+    {
+        ClearDetails();
+    }
+
     //if (SlotBorder)
     //{
     //    SlotBorder->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -53,8 +64,15 @@ void UInventorySlotWidget::NativeConstruct()
 void UInventorySlotWidget::NativeDestruct()
 {
 
-	Super::NativeDestruct();
+    // Closing the inventory under the pointer sends no MouseLeave, so the hovered slot clears the
+    // panel on the way out. Every other slot leaves it alone.
+    if (bPointerInside)
+    {
+        bPointerInside = false;
+        ClearDetails();
+    }
 
+	Super::NativeDestruct();
 }
 
 void UInventorySlotWidget::Rebuild() {
@@ -198,7 +216,6 @@ bool UInventorySlotWidget::NativeOnDrop(const FGeometry& G, const FDragDropEvent
             
             bSuccess = FromInv->MoveWithin(FromIdx, ToIdx, Qty);
         }
-        return false;
     }
     else
     {
@@ -224,4 +241,38 @@ void UInventorySlotWidget::NativeOnDragLeave(const FDragDropEvent&, UDragDropOpe
 bool UInventorySlotWidget::NativeOnDragOver(const FGeometry&, const FDragDropEvent&, UDragDropOperation*)
 {
     return true;
+}
+
+void UInventorySlotWidget::NativeOnMouseEnter(const FGeometry& InGeometry,const FPointerEvent& InMouseEvent)
+{
+    Super::NativeOnMouseEnter(InGeometry, InMouseEvent);
+
+    // Set even for an empty slot, so an item dropped into the slot under the pointer shows at once.
+    bPointerInside = true;
+    PushDetails();
+}
+
+void UInventorySlotWidget::NativeOnMouseLeave(const FPointerEvent& InMouseEvent)
+{
+    Super::NativeOnMouseLeave(InMouseEvent);
+
+    bPointerInside = false;
+    ClearDetails();
+}
+
+void UInventorySlotWidget::PushDetails() const
+{
+    if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwningPlayer()))
+    {
+        // SetupDetailsWidget hides the panel for a null definition, i.e. an empty slot.
+        PC->SetupDetailsWidget(InvSlot.Item, InvSlot.Instance);
+    }
+}
+
+void UInventorySlotWidget::ClearDetails() const
+{
+    if (AAlchemySimulatorPlayerController* PC = Cast<AAlchemySimulatorPlayerController>(GetOwningPlayer()))
+    {
+        PC->SetupDetailsWidget(nullptr, FItemInstanceData());
+    }
 }

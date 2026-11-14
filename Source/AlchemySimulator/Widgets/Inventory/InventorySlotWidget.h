@@ -27,9 +27,6 @@ public:
 	UPROPERTY(meta = (BindWidget))
 	class UTextBlock* SlotQuantity = nullptr;
 
-	UPROPERTY(meta = (BindWidget))
-	class UBorder* SlotBorder;
-
 	UPROPERTY(BlueprintReadOnly)
 	class UInventoryComponent* OwnerInventory;
 
@@ -48,6 +45,8 @@ public:
 	virtual void NativeOnDragLeave(const FDragDropEvent& DragDropEvent, UDragDropOperation* Operation) override;
 	virtual bool NativeOnDragOver(const FGeometry& MyGeo, const FDragDropEvent& DragDropEvent, UDragDropOperation* Operation) override;
 	virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& Geo, const FPointerEvent& E) override;
+	virtual void NativeOnMouseEnter(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+    virtual void NativeOnMouseLeave(const FPointerEvent& InMouseEvent) override;
 
 protected:
 
@@ -57,4 +56,15 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 	void Rebuild();
+
+	/**
+	 * True between this slot's MouseEnter and MouseLeave. The hover panel is shared by every slot
+	 * in every inventory, so only the slot under the pointer may write to it - otherwise a
+	 * RebuildGrid elsewhere (which destroys all its slots) would hide a panel it does not own.
+	 */
+	bool bPointerInside = false;
+
+	/** Shows this slot's current contents in the hover panel, or hides it if the slot is empty. */
+	void PushDetails() const;
+	void ClearDetails() const;
 };

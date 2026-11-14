@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "InputActionValue.h"
+#include "ItemMetadata.h"
 #include "AlchemySimulatorPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -108,8 +109,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	TSubclassOf<class UInteractionIndicatorWidget> InteractionIndicatorWidgetClass;
 
+	/** Hover panel shown next to the cursor over any inventory slot. One instance, shared by all slots. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<class UInventorySlotDetailsWidget> InventorySlotDetailsWidgetClass;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Interaction")
 	TObjectPtr<UInteractionIndicatorWidget> InteractionIndicatorWidget = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UInventorySlotDetailsWidget> InventorySlotDetailsWidget = nullptr;
 
 	/**
 	 * The focused target as an actor, or null.
@@ -218,6 +226,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Tools")
 	void SetActiveTool(class ABaseTool* tool);
 
+	/** Shows the hover panel for this item, or hides it when ItemDef is null. Its visibility is the only "is open" state. */
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void SetupDetailsWidget(const class UItemDefinitionBase* ItemDef, const FItemInstanceData& ItemData);
+
 	UFUNCTION()
 	void RestoreCustomCursor();
 
@@ -270,6 +282,9 @@ public:
 
 	UFUNCTION()
 	void StopWorldDrag();
+
+	UFUNCTION()
+	void UpdateDetailsWidget();
 
 	UFUNCTION()
 	void RotateDraggedItem(const FInputActionValue& Value);

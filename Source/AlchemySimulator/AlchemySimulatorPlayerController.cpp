@@ -37,6 +37,8 @@
 #include "PlayerModes/ExplorationPlayerMode.h"
 #include "Components/Inventory/InventoryComponent.h"
 #include "Widgets/Indicators/InteractionIndicatorWidget.h"
+#include "Widgets/Inventory/InventorySlotDetailsWidget.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
 #include "PlayerModes/StationPlayerMode.h"
 #include "InputAction.h"
 
@@ -95,6 +97,28 @@ void AAlchemySimulatorPlayerController::BeginPlay()
 	{
 		UE_LOG(LogAlchemySimulator, Warning,
 			TEXT("[Interaction] InteractionIndicatorWidgetClass is unset on %s - no interaction indicator will ever show."),
+			*GetNameSafe(this));
+	}
+
+	if (InventorySlotDetailsWidgetClass)
+	{
+		InventorySlotDetailsWidget = CreateWidget<UInventorySlotDetailsWidget>(this, InventorySlotDetailsWidgetClass);
+		if (InventorySlotDetailsWidget)
+		{
+			InventorySlotDetailsWidget->AddToViewport(500);
+			InventorySlotDetailsWidget->SetVisibility(ESlateVisibility::Hidden);
+		}
+		else
+		{
+			UE_LOG(LogAlchemySimulator, Warning,
+				TEXT("[ItemDetails] CreateWidget failed for InventorySlotDetailsWidgetClass %s - check the PIE message log (abstract, deprecated or REINST class?)"),
+				*GetNameSafe(InventorySlotDetailsWidgetClass));
+		}
+	}
+	else
+	{
+		UE_LOG(LogAlchemySimulator, Warning,
+			TEXT("[ItemDetails] InventorySlotDetailsWidgetClass is unset on %s - no inventory slot details will ever show."),
 			*GetNameSafe(this));
 	}
 
@@ -958,6 +982,11 @@ void AAlchemySimulatorPlayerController::PlayerTick(float DeltaTime)
 	// derived in the same place, not set here.
 	UpdateInteractionIndicator();
 
+	if (InventorySlotDetailsWidget && InventorySlotDetailsWidget->IsVisible())
+	{
+		UpdateDetailsWidget();
+	}
+
 	if (!bIsDraggingWorldActor || !DraggedActor)
 	{
 		return;
@@ -1013,4 +1042,66 @@ void AAlchemySimulatorPlayerController::HandleDialogueStarted(ANPCCharacter* NPC
 
     W->Setup(DialogueRuntime, NPC);
     PushWidget(W);
+}
+
+void AAlchemySimulatorPlayerController::SetupDetailsWidget(const UItemDefinitionBase* ItemDef, const FItemInstanceData& ItemData)
+{
+	if (!InventorySlotDetailsWidget)
+	{
+		return;
+	}
+
+	if (!ItemDef)
+	{
+		InventorySlotDetailsWidget->SetVisibility(ESlateVisibility::Hidden);
+		return;
+	}
+
+	InventorySlotDetailsWidget->Setup(ItemDef, ItemData);
+
+	// HitTestInvisible, not Visible: the panel trails the cursor by a frame, so a fast move can
+	// land the pointer on it. A hit-testable panel would then take MouseLeave from the slot,
+	// hide itself, hand hover back, and flicker - and swallow any click made meanwhile.
+	InventorySlotDetailsWidget->SetVisibility(ESlateVisibility::HitTestInvisible);
+
+	// Position now rather than next tick, or the first frame shows it wherever it last was.
+	UpdateDetailsWidget();
+}
+
+void AAlchemySimulatorPlayerController::UpdateDetailsWidget()
+{
+	if (!InventorySlotDetailsWidget)
+	{
+		return;
+	}
+
+	FVector2D MousePosition;
+	if (!GetMousePosition(MousePosition.X, MousePosition.Y))
+	{
+		return;
+	}
+
+	constexpr float CursorOffset = 20.f;
+
+	// Everything here is in viewport pixels (SetPositionInViewport is told so below). DesiredSize
+	// is in Slate units, so scale it up; it is zero on the very first frame before layout, which
+	// just means no flip that frame.
+	int32 ViewportX = 0, ViewportY = 0;
+	GetViewportSize(ViewportX, ViewportY);
+	const FVector2D PanelSize = InventorySlotDetailsWidget->GetDesiredSize() * UWidgetLayoutLibrary::GetViewportScale(this);
+
+	// Prefer below-right of the cursor; flip to the other side on whichever axis would overflow.
+	FVector2D Position = MousePosition + FVector2D(CursorOffset);
+	if (Position.X + PanelSize.X > ViewportX)
+	{
+		Position.X = MousePosition.X - CursorOffset - PanelSize.X;
+	}
+	if (Position.Y + PanelSize.Y > ViewportY)
+	{
+		Position.Y = MousePosition.Y - CursorOffset - PanelSize.Y;
+	}
+	Position.X = FMath::Max(0.f, Position.X);
+	Position.Y = FMath::Max(0.f, Position.Y);
+
+	InventorySlotDetailsWidget->SetPositionInViewport(Position, true);
 }
